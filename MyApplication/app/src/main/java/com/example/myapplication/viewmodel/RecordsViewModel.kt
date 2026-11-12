@@ -2,10 +2,12 @@ package com.example.myapplication.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.myapplication.data.DEFAULT_DEVICE_ID
 import com.example.myapplication.data.Lot
 import com.example.myapplication.data.RecordsRepository
 import com.example.myapplication.data.SavedMeasurement
 import com.example.myapplication.model.MilkQualityReading
+import com.example.myapplication.model.Role
 import com.example.myapplication.model.UserSession
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -72,6 +74,28 @@ class RecordsViewModel : ViewModel() {
             onError = { e -> _state.update { it.copy(message = friendlyMessage(e)) } }
         )
         listenHistory()
+        ensureDevice(newSession)
+    }
+
+    /**
+     * La caja debe estar registrada para guardar mediciones (lo exigen las reglas).
+     * Si falta y entra el administrador, la app la registra; si entra otro rol, avisa.
+     */
+    private fun ensureDevice(current: UserSession) {
+        viewModelScope.launch {
+            if (repository.defaultDeviceExists() != false) return@launch
+            val message = if (current.role == Role.ADMIN) {
+                try {
+                    repository.registerDefaultDevice()
+                    "Caja de sensores registrada ($DEFAULT_DEVICE_ID)."
+                } catch (e: Exception) {
+                    "No se pudo registrar la caja: " + friendlyMessage(e)
+                }
+            } else {
+                "La caja de sensores no está registrada. Pide al administrador que ingrese a la app para registrarla."
+            }
+            _state.update { it.copy(message = message) }
+        }
     }
 
     /** Se llama al cerrar sesion: deja de escuchar Firestore antes de salir. */
@@ -115,7 +139,9 @@ class RecordsViewModel : ViewModel() {
         _state.update { it.copy(saving = true) }
         viewModelScope.launch {
             try {
-                val lot = repository.getOrCreateTodayLot(tank, current)
+                val lot = repository.getOrCreateTodayLot(tank, current) { e ->
+                    _state.update { it.copy(message = "El servidor no aceptó el lote: " + friendlyMessage(e)) }
+                }
                 _state.update { st ->
                     val lots = if (st.lots.any { it.id == lot.id }) st.lots else listOf(lot) + st.lots
                     st.copy(lots = lots, currentLotId = lot.id, saving = false, message = "Lote activo: ${lot.tank}.")
@@ -152,11 +178,20 @@ class RecordsViewModel : ViewModel() {
             _state.update { it.copy(message = "Primero elige o crea el lote de hoy.") }
             return
         }
-        repository.saveMeasurement(reading, lotId, current) { e ->
-            _state.update { it.copy(message = "No se pudo guardar la medición: " + friendlyMessage(e)) }
-        }
+        val lotName = _state.value.lotName(lotId)
+        repository.saveMeasurement(
+            reading = reading,
+            lotId = lotId,
+            session = current,
+            onSynced = {
+                _state.update { it.copy(message = "Medición confirmada en la nube ($lotName).") }
+            },
+            onError = { e ->
+                _state.update { it.copy(message = "La nube rechazó la medición: " + friendlyMessage(e)) }
+            }
+        )
         _state.update {
-            it.copy(message = "Medición registrada en ${it.lotName(lotId)} (pH %.2f).".format(reading.ph))
+            it.copy(message = "Medición guardada en el teléfono ($lotName, pH %.2f). Sincronizando…".format(reading.ph))
         }
     }
 
@@ -170,7 +205,7 @@ class RecordsViewModel : ViewModel() {
     private fun friendlyMessage(e: Exception): String = when {
         e is FirebaseNetworkException -> "Sin conexión. Se guardará cuando vuelva la red."
         e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED ->
-            "Permiso denegado. Revisa tu rol, que exista dispositivos/caja-01 y que las reglas estén publicadas."
+            "permiso denegado. Revisa que existan la caja ($DEFAULT_DEVICE_ID) y el lote en Firestore, y que las reglas estén publicadas."
         e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION ->
             "Falta un índice en Firestore para esta consulta (ver docs/configurar-firebase.md)."
         else -> "No se pudo completar la operación. Inténtalo de nuevo."

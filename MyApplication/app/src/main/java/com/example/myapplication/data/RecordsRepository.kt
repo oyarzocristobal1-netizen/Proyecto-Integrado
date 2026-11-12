@@ -78,7 +78,11 @@ class RecordsRepository(
      * Devuelve el lote de hoy para ese estanque, o lo crea. El ID es fecha + estanque,
      * asi no se duplica aunque dos personas lo creen a la vez.
      */
-    suspend fun getOrCreateTodayLot(tank: String, session: UserSession): Lot {
+    suspend fun getOrCreateTodayLot(
+        tank: String,
+        session: UserSession,
+        onError: (Exception) -> Unit
+    ): Lot {
         val cleanTank = tank.trim()
         val now = Date()
         val id = lotIdFor(cleanTank, now)
@@ -94,7 +98,7 @@ class RecordsRepository(
             "observacion" to ""
         )
         // Sin esperar al servidor: funciona sin conexion y se sincroniza despues.
-        lots.document(id).set(data)
+        lots.document(id).set(data).addOnFailureListener { onError(it) }
         return Lot(id, cleanTank, now, session.uid, session.name, "")
     }
 
@@ -104,6 +108,23 @@ class RecordsRepository(
             mapOf(
                 "estanque" to tank.trim(),
                 "observacion" to note.trim()
+            )
+        ).await()
+    }
+
+    // ------------------------------------------------------------ caja de sensores
+
+    /** true si existe, false si no, null si no se pudo saber (por ejemplo, sin conexion). */
+    suspend fun defaultDeviceExists(): Boolean? =
+        runCatching { db.collection("dispositivos").document(DEFAULT_DEVICE_ID).get().await().exists() }.getOrNull()
+
+    /** Registra la caja por defecto (solo el administrador puede, segun las reglas). */
+    suspend fun registerDefaultDevice() {
+        db.collection("dispositivos").document(DEFAULT_DEVICE_ID).set(
+            mapOf(
+                "nombre" to "Caja de sensores 1",
+                "ubicacion" to "Sala de ordeña",
+                "estado" to "activo"
             )
         ).await()
     }
@@ -118,6 +139,7 @@ class RecordsRepository(
         reading: MilkQualityReading,
         lotId: String,
         session: UserSession,
+        onSynced: () -> Unit,
         onError: (Exception) -> Unit
     ): String {
         val id = UUID.randomUUID().toString()
@@ -139,7 +161,10 @@ class RecordsRepository(
                 "titulo" to assessment.title
             )
         )
-        measurements.document(id).set(data).addOnFailureListener { onError(it) }
+        // La tarea termina cuando el servidor acepta la medicion (o la rechaza por las reglas).
+        measurements.document(id).set(data)
+            .addOnSuccessListener { onSynced() }
+            .addOnFailureListener { onError(it) }
         return id
     }
 
