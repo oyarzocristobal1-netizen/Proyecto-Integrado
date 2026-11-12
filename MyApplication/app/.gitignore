@@ -1,1 +1,3 @@
 /build
+# Configuracion de Firebase: cada integrante la copia en su equipo, no se sube al repositorio
+google-services.json

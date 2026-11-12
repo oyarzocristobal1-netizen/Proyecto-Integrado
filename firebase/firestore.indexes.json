@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    { "collectionGroup": "mediciones", "queryScope": "COLLECTION", "fields": [
+        { "fieldPath": "idLote", "order": "ASCENDING" },
+        { "fieldPath": "fechaHora", "order": "DESCENDING" } ] },
+    { "collectionGroup": "mediciones", "queryScope": "COLLECTION", "fields": [
+        { "fieldPath": "uidLechero", "order": "ASCENDING" },
+        { "fieldPath": "fechaHora", "order": "DESCENDING" } ] },
+    { "collectionGroup": "mediciones", "queryScope": "COLLECTION", "fields": [
+        { "fieldPath": "uidLechero", "order": "ASCENDING" },
+        { "fieldPath": "idLote", "order": "ASCENDING" },
+        { "fieldPath": "fechaHora", "order": "DESCENDING" } ] },
+    { "collectionGroup": "alertas", "queryScope": "COLLECTION", "fields": [
+        { "fieldPath": "atendida", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "DESCENDING" } ] },
+    { "collectionGroup": "calibraciones", "queryScope": "COLLECTION", "fields": [
+        { "fieldPath": "idDispositivo", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "DESCENDING" } ] }
+  ],
+  "fieldOverrides": []
+}
