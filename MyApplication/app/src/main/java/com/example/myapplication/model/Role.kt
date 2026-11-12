@@ -8,22 +8,22 @@ package com.example.myapplication.model
 enum class Role(val id: String, val label: String) {
     ADMIN("admin", "Administrador"),
     ENCARGADO("encargado", "Encargado"),
-    OPERARIO("operario", "Operario");
+    LECHERO("lechero", "Lechero");
 
     /** Tomar medicion, ver resultado, crear lote y recibir alertas: todos los roles. */
     val canMeasure: Boolean get() = true
 
-    /** Historial: administrador y encargado ven todo; el operario, solo lo propio. */
-    val canViewAllHistory: Boolean get() = this != OPERARIO
+    /** Historial: administrador y encargado ven todo; el lechero, solo lo propio. */
+    val canViewAllHistory: Boolean get() = this != LECHERO
 
     /** Editar un lote. */
-    val canEditLots: Boolean get() = this != OPERARIO
+    val canEditLots: Boolean get() = this != LECHERO
 
     /** Marcar una alerta como atendida. */
-    val canAttendAlerts: Boolean get() = this != OPERARIO
+    val canAttendAlerts: Boolean get() = this != LECHERO
 
     /** Exportar reportes. */
-    val canExportReports: Boolean get() = this != OPERARIO
+    val canExportReports: Boolean get() = this != LECHERO
 
     /** Calibrar el dispositivo (incluye ver la configuracion y el codigo de la caja). */
     val canCalibrateDevice: Boolean get() = this == ADMIN

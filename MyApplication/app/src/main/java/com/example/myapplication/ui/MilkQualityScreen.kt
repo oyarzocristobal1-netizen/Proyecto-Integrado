@@ -35,6 +35,7 @@ fun MilkQualityScreen(
     viewModel: MilkQualityViewModel,
     session: UserSession,
     onLogout: () -> Unit,
+    onOpenUserManagement: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val role = session.role
@@ -76,6 +77,11 @@ fun MilkQualityScreen(
                     }
                     IconButton(onClick = { viewModel.setShowDeviceDialog(true) }) {
                         Icon(Icons.Default.Bluetooth, contentDescription = "Conectar Bluetooth")
+                    }
+                    if (role.canManageUsers) {
+                        IconButton(onClick = onOpenUserManagement) {
+                            Icon(Icons.Default.ManageAccounts, contentDescription = "Gestión de usuarios")
+                        }
                     }
                     IconButton(onClick = onLogout) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Cerrar sesión")

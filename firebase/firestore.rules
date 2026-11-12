@@ -1,5 +1,5 @@
 // Reglas de seguridad de Cloud Firestore - Proyecto Integrado (calidad de la leche)
-// Coherentes con la Tabla 31 (matriz de permisos por rol) del informe.
+// Coherentes con la Tabla 31 (matriz de permisos por rol): admin, encargado y lechero.
 // Se publican en la consola: Firestore Database -> Reglas -> pegar este archivo -> Publicar.
 
 rules_version = '2';
@@ -8,34 +8,38 @@ service cloud.firestore {
     function logueado() {
       return request.auth != null && request.auth.token.email_verified;
     }
-    function rol() {
-      return get(/databases/$(db)/documents/usuarios/$(request.auth.uid)).data.rol;
+    function perfil() {
+      return get(/databases/$(db)/documents/usuarios/$(request.auth.uid)).data;
     }
-    function esAdmin() { return logueado() && rol() == 'admin'; }
-    function esEncargado() { return logueado() && rol() in ['admin', 'encargado']; }
+    // Cuenta con sesion, correo verificado y marcada como activa por el administrador
+    function activo() { return logueado() && perfil().activo == true; }
+    function esAdmin() { return activo() && perfil().rol == 'admin'; }
+    function esEncargado() { return activo() && perfil().rol in ['admin', 'encargado']; }
     function existe(col, id) {
       return exists(/databases/$(db)/documents/$(col)/$(id));
     }
 
     match /usuarios/{uid} {
+      // Cada persona lee su propio perfil (la app lo necesita al ingresar); el administrador lee todos
       allow read: if logueado() && (request.auth.uid == uid || esAdmin());
+      // Solo el administrador crea cuentas, cambia roles o las desactiva
       allow write: if esAdmin();
     }
     match /dispositivos/{id} {
-      allow read: if logueado();
+      allow read: if activo();
       allow write: if esAdmin();
     }
     match /lotes/{id} {
-      allow read: if logueado();
-      allow create: if logueado() && request.resource.data.creadoPor == request.auth.uid;
+      allow read: if activo();
+      allow create: if activo() && request.resource.data.creadoPor == request.auth.uid;
       allow update: if esEncargado();
       allow delete: if false;
     }
     match /mediciones/{id} {
       allow read: if esEncargado()
-                  || (logueado() && resource.data.uidOperario == request.auth.uid);
-      allow create: if logueado()
-        && request.resource.data.uidOperario == request.auth.uid
+                  || (activo() && resource.data.uidLechero == request.auth.uid);
+      allow create: if activo()
+        && request.resource.data.uidLechero == request.auth.uid
         && request.resource.data.fechaHora is timestamp
         && request.resource.data.sensores.temp is number
         && request.resource.data.sensores.ph is number
@@ -45,15 +49,15 @@ service cloud.firestore {
       allow update, delete: if false;          // mediciones inmutables
     }
     match /alertas/{id} {
-      allow read: if logueado();
-      allow create: if logueado()
+      allow read: if activo();
+      allow create: if activo()
         && existe('mediciones', request.resource.data.idMedicion);
       allow update: if esEncargado()
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['atendida']);
     }
     match /calibraciones/{id} { allow read, write: if esAdmin(); }
-    match /configuracion/{id} { allow read: if logueado(); allow write: if esAdmin(); }
-    // Todo lo demás queda denegado por defecto
+    match /configuracion/{id} { allow read: if activo(); allow write: if esAdmin(); }
+    // Todo lo demas queda denegado por defecto
   }
 }

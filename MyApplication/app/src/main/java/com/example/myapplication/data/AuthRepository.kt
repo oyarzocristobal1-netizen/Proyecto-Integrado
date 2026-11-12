@@ -2,12 +2,8 @@ package com.example.myapplication.data
 
 import com.example.myapplication.model.Role
 import com.example.myapplication.model.UserSession
-import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 /** Politica de autenticacion del informe (seccion 6.1). */
 const val MIN_PASSWORD_LENGTH = 10
@@ -19,7 +15,7 @@ enum class AuthError(val message: String) {
     EMAIL_NOT_VERIFIED("Tu correo aún no está verificado. Te enviamos un enlace: ábrelo y vuelve a ingresar."),
     NO_PROFILE("Tu cuenta no tiene perfil en el sistema. Pide al administrador que la registre."),
     NO_ROLE("Tu cuenta no tiene un rol válido asignado. Pide al administrador que lo revise."),
-    INACTIVE("Tu cuenta está desactivada. Contacta al administrador.")
+    INACTIVE("Tu cuenta está desactivada o incompleta (falta activo = true). Contacta al administrador.")
 }
 
 class AuthException(val error: AuthError) : Exception(error.message)
@@ -27,6 +23,7 @@ class AuthException(val error: AuthError) : Exception(error.message)
 /**
  * Inicio de sesion con Firebase Authentication (correo y contrasena) y lectura del rol
  * desde Firestore (coleccion "usuarios", campos: nombre, correo, rol, activo).
+ * Roles validos: admin, encargado y lechero.
  */
 class AuthRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
@@ -69,7 +66,7 @@ class AuthRepository(
             auth.signOut()
             throw AuthException(AuthError.NO_ROLE)
         }
-        if (doc.getBoolean("activo") == false) {
+        if (doc.getBoolean("activo") != true) {
             auth.signOut()
             throw AuthException(AuthError.INACTIVE)
         }
@@ -89,16 +86,5 @@ class AuthRepository(
 
     fun signOut() {
         auth.signOut()
-    }
-}
-
-/** Espera el resultado de una Task de Firebase sin bloquear el hilo principal. */
-private suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { cont ->
-    addOnCompleteListener { task ->
-        if (task.isSuccessful) {
-            cont.resume(task.result)
-        } else {
-            cont.resumeWithException(task.exception ?: Exception("Error desconocido de Firebase"))
-        }
     }
 }
