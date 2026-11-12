@@ -100,6 +100,22 @@ Si falta un índice, la app muestra "Falta un índice en Firestore para esta con
 Campos que la app agrega además de la Tabla 20 del informe (redundancia controlada, para mostrar nombres
 sin lecturas extra): `nombreLechero` en mediciones; `nombreCreador` y `observacion` en lotes.
 
+## 9. Alertas
+
+Cuando el servidor confirma una medición, la app crea una alerta en `alertas` por cada valor fuera de rango
+(ID `idMedicion-tipo`, sin duplicados):
+
+| Tipo | Se genera si | Severidad alta si |
+|---|---|---|
+| `temperatura` | > 4 °C | > 25 °C |
+| `ph` | fuera de 6,6–6,8 | < 6,4 o > 7,0 |
+| `conductividad` | fuera de 4,0–6,0 mS/cm | > 6,2 o < 3,5 |
+| `turbidez` | < 50 % | siempre |
+
+Campos: `idMedicion`, `idLote`, `tipo`, `severidad` (media o alta), `fecha`, `atendida` (false al crearse),
+`valor`, `mensaje` y `nombreLechero`. Todos los roles ven las alertas (campana con el número de pendientes);
+solo el encargado y el administrador las marcan como atendidas, y la regla solo permite cambiar `atendida`.
+
 ## Problemas comunes
 
 | Mensaje en la app | Causa y solución |

@@ -19,6 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.example.myapplication.ui.AlertsScreen
 import com.example.myapplication.ui.LoginScreen
 import com.example.myapplication.ui.LotsScreen
 import com.example.myapplication.ui.MilkQualityScreen
@@ -80,6 +81,12 @@ class MainActivity : ComponentActivity() {
                                     onBack = { screen = SCREEN_MAIN }
                                 )
 
+                                screen == SCREEN_ALERTS -> AlertsScreen(
+                                    viewModel = recordsViewModel,
+                                    session = session,
+                                    onBack = { screen = SCREEN_MAIN }
+                                )
+
                                 screen == SCREEN_LOTS && session.role.canEditLots -> LotsScreen(
                                     viewModel = recordsViewModel,
                                     onBack = { screen = SCREEN_MAIN }
@@ -91,7 +98,8 @@ class MainActivity : ComponentActivity() {
                                     session = session,
                                     onLogout = logout,
                                     onOpenUserManagement = { screen = SCREEN_USERS },
-                                    onOpenLots = { screen = SCREEN_LOTS }
+                                    onOpenLots = { screen = SCREEN_LOTS },
+                                    onOpenAlerts = { screen = SCREEN_ALERTS }
                                 )
                             }
                         }
@@ -105,3 +113,4 @@ class MainActivity : ComponentActivity() {
 private const val SCREEN_MAIN = "principal"
 private const val SCREEN_LOTS = "lotes"
 private const val SCREEN_USERS = "usuarios"
+private const val SCREEN_ALERTS = "alertas"

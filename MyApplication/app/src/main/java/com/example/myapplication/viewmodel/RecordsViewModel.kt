@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.DEFAULT_DEVICE_ID
 import com.example.myapplication.data.Lot
+import com.example.myapplication.data.MilkAlert
 import com.example.myapplication.data.RecordsRepository
 import com.example.myapplication.data.SavedMeasurement
 import com.example.myapplication.model.MilkQualityReading
@@ -29,6 +30,11 @@ data class RecordsUiState(
     val history: List<SavedMeasurement> = emptyList(),
     val historyLoading: Boolean = true,
     val saving: Boolean = false,
+    /** Alertas sin atender (para el contador de la campana). */
+    val pendingAlerts: List<MilkAlert> = emptyList(),
+    /** Lista de la pantalla de alertas (pendientes o todas, segun el filtro). */
+    val alerts: List<MilkAlert> = emptyList(),
+    val alertsOnlyPending: Boolean = true,
     /** Mensaje para mostrar una vez (snackbar). */
     val message: String? = null
 ) {
@@ -55,6 +61,8 @@ class RecordsViewModel : ViewModel() {
     private var session: UserSession? = null
     private var lotsListener: ListenerRegistration? = null
     private var historyListener: ListenerRegistration? = null
+    private var pendingAlertsListener: ListenerRegistration? = null
+    private var alertsListener: ListenerRegistration? = null
 
     /** Se llama al iniciar sesion. */
     fun start(newSession: UserSession) {
@@ -74,6 +82,12 @@ class RecordsViewModel : ViewModel() {
             onError = { e -> _state.update { it.copy(message = friendlyMessage(e)) } }
         )
         listenHistory()
+        pendingAlertsListener = repository.listenAlerts(
+            onlyPending = true,
+            onChange = { list -> _state.update { it.copy(pendingAlerts = list) } },
+            onError = { e -> _state.update { it.copy(message = friendlyMessage(e)) } }
+        )
+        listenAlerts()
         ensureDevice(newSession)
     }
 
@@ -102,8 +116,12 @@ class RecordsViewModel : ViewModel() {
     fun stop() {
         lotsListener?.remove()
         historyListener?.remove()
+        pendingAlertsListener?.remove()
+        alertsListener?.remove()
         lotsListener = null
         historyListener = null
+        pendingAlertsListener = null
+        alertsListener = null
         session = null
     }
 
@@ -117,6 +135,35 @@ class RecordsViewModel : ViewModel() {
             onChange = { list -> _state.update { it.copy(history = list, historyLoading = false) } },
             onError = { e -> _state.update { it.copy(historyLoading = false, message = friendlyMessage(e)) } }
         )
+    }
+
+    private fun listenAlerts() {
+        alertsListener?.remove()
+        alertsListener = repository.listenAlerts(
+            onlyPending = _state.value.alertsOnlyPending,
+            onChange = { list -> _state.update { it.copy(alerts = list) } },
+            onError = { e -> _state.update { it.copy(message = friendlyMessage(e)) } }
+        )
+    }
+
+    fun setAlertsOnlyPending(onlyPending: Boolean) {
+        if (_state.value.alertsOnlyPending == onlyPending) return
+        _state.update { it.copy(alertsOnlyPending = onlyPending) }
+        listenAlerts()
+    }
+
+    /** Solo encargado y administrador (lo exigen las reglas). */
+    fun markAlertAttended(alert: MilkAlert) {
+        val current = session ?: return
+        if (!current.role.canAttendAlerts) return
+        viewModelScope.launch {
+            try {
+                repository.markAlertAttended(alert.id)
+                _state.update { it.copy(message = "Alerta marcada como atendida.") }
+            } catch (e: Exception) {
+                _state.update { it.copy(message = "No se pudo marcar la alerta: " + friendlyMessage(e)) }
+            }
+        }
     }
 
     fun setHistoryFilter(lotId: String?) {
@@ -183,8 +230,16 @@ class RecordsViewModel : ViewModel() {
             reading = reading,
             lotId = lotId,
             session = current,
-            onSynced = {
-                _state.update { it.copy(message = "Medición confirmada en la nube ($lotName).") }
+            onSynced = { measurementId ->
+                val count = repository.createAlertsFor(measurementId, reading, lotId, current) { e ->
+                    _state.update { it.copy(message = "No se pudo crear una alerta: " + friendlyMessage(e)) }
+                }
+                val text = if (count == 0) {
+                    "Medición confirmada en la nube ($lotName)."
+                } else {
+                    "Medición confirmada ($lotName). Se generaron $count alerta(s)."
+                }
+                _state.update { it.copy(message = text) }
             },
             onError = { e ->
                 _state.update { it.copy(message = "La nube rechazó la medición: " + friendlyMessage(e)) }

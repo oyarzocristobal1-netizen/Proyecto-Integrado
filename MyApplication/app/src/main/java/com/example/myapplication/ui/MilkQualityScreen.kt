@@ -43,6 +43,7 @@ fun MilkQualityScreen(
     onLogout: () -> Unit,
     onOpenUserManagement: () -> Unit,
     onOpenLots: () -> Unit,
+    onOpenAlerts: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val role = session.role
@@ -95,6 +96,18 @@ fun MilkQualityScreen(
                     }
                     IconButton(onClick = { viewModel.setShowDeviceDialog(true) }) {
                         Icon(Icons.Default.Bluetooth, contentDescription = "Conectar Bluetooth")
+                    }
+                    // Alertas: todos los roles las reciben; el numero son las pendientes
+                    IconButton(onClick = onOpenAlerts) {
+                        BadgedBox(
+                            badge = {
+                                if (records.pendingAlerts.isNotEmpty()) {
+                                    Badge { Text(records.pendingAlerts.size.coerceAtMost(99).toString()) }
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Alertas")
+                        }
                     }
                     if (role.canEditLots) {
                         IconButton(onClick = onOpenLots) {

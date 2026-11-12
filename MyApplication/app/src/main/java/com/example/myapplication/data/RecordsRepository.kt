@@ -1,6 +1,8 @@
 package com.example.myapplication.data
 
+import com.example.myapplication.model.AlertSeverity
 import com.example.myapplication.model.MilkQualityReading
+import com.example.myapplication.model.detectAlerts
 import com.example.myapplication.model.QualityLevel
 import com.example.myapplication.model.UserSession
 import com.google.firebase.Timestamp
@@ -47,6 +49,20 @@ data class SavedMeasurement(
     val title: String
 )
 
+/** Alerta guardada (coleccion "alertas"). Solo el campo atendida se puede cambiar. */
+data class MilkAlert(
+    val id: String,
+    val measurementId: String,
+    val lotId: String,
+    val type: String,
+    val severity: AlertSeverity,
+    val date: Date,
+    val attended: Boolean,
+    val value: Double,
+    val message: String,
+    val milkerName: String
+)
+
 /**
  * Lotes y mediciones en Cloud Firestore. Firestore guarda una copia local en el telefono:
  * sin conexion las escrituras quedan en cola y se suben solas al volver la red.
@@ -56,6 +72,7 @@ class RecordsRepository(
 ) {
     private val lots = db.collection("lotes")
     private val measurements = db.collection("mediciones")
+    private val alerts = db.collection("alertas")
 
     // ------------------------------------------------------------------ lotes
 
@@ -139,7 +156,7 @@ class RecordsRepository(
         reading: MilkQualityReading,
         lotId: String,
         session: UserSession,
-        onSynced: () -> Unit,
+        onSynced: (measurementId: String) -> Unit,
         onError: (Exception) -> Unit
     ): String {
         val id = UUID.randomUUID().toString()
@@ -163,7 +180,7 @@ class RecordsRepository(
         )
         // La tarea termina cuando el servidor acepta la medicion (o la rechaza por las reglas).
         measurements.document(id).set(data)
-            .addOnSuccessListener { onSynced() }
+            .addOnSuccessListener { onSynced(id) }
             .addOnFailureListener { onError(it) }
         return id
     }
@@ -197,7 +214,82 @@ class RecordsRepository(
             }
     }
 
+    // ---------------------------------------------------------------- alertas
+
+    /**
+     * Crea una alerta por cada valor fuera de rango. Se llama cuando el servidor ya acepto la
+     * medicion, porque la regla exige que la medicion exista. El ID (medicion-tipo) evita duplicados.
+     * Devuelve cuantas alertas se generaron.
+     */
+    fun createAlertsFor(
+        measurementId: String,
+        reading: MilkQualityReading,
+        lotId: String,
+        session: UserSession,
+        onError: (Exception) -> Unit
+    ): Int {
+        val candidates = detectAlerts(reading)
+        candidates.forEach { a ->
+            alerts.document("$measurementId-${a.type}").set(
+                mapOf(
+                    "idMedicion" to measurementId,
+                    "idLote" to lotId,
+                    "tipo" to a.type,
+                    "severidad" to a.severity.id,
+                    "fecha" to Timestamp(Date(reading.timestamp)),
+                    "atendida" to false,
+                    "valor" to a.value,
+                    "mensaje" to a.message,
+                    "nombreLechero" to session.name
+                )
+            ).addOnFailureListener { onError(it) }
+        }
+        return candidates.size
+    }
+
+    /** Alertas en tiempo real: solo pendientes (consulta Q5) o todas las recientes. */
+    fun listenAlerts(
+        onlyPending: Boolean,
+        onChange: (List<MilkAlert>) -> Unit,
+        onError: (Exception) -> Unit
+    ): ListenerRegistration {
+        var query: Query = alerts
+        if (onlyPending) {
+            query = query.whereEqualTo("atendida", false)
+        }
+        return query.orderBy("fecha", Query.Direction.DESCENDING)
+            .limit(HISTORY_LIMIT)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(error)
+                } else if (snapshot != null) {
+                    onChange(snapshot.documents.mapNotNull { it.toAlert() })
+                }
+            }
+    }
+
+    /** Marcar como atendida: la regla solo permite cambiar este campo (encargado y administrador). */
+    suspend fun markAlertAttended(alertId: String) {
+        alerts.document(alertId).update("atendida", true).await()
+    }
+
     // ------------------------------------------------------------- utilidades
+
+    private fun DocumentSnapshot.toAlert(): MilkAlert? {
+        val date = getTimestamp("fecha")?.toDate() ?: return null
+        return MilkAlert(
+            id = id,
+            measurementId = getString("idMedicion").orEmpty(),
+            lotId = getString("idLote").orEmpty(),
+            type = getString("tipo").orEmpty(),
+            severity = AlertSeverity.fromId(getString("severidad")),
+            date = date,
+            attended = getBoolean("atendida") == true,
+            value = getDouble("valor") ?: 0.0,
+            message = getString("mensaje").orEmpty(),
+            milkerName = getString("nombreLechero").orEmpty()
+        )
+    }
 
     private fun DocumentSnapshot.toLot(): Lot? {
         val date = getTimestamp("fecha")?.toDate() ?: return null
