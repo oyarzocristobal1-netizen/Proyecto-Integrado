@@ -21,50 +21,54 @@ data class AlertCandidate(
 
 /**
  * Reglas de alerta (RF5: generar una alerta cuando un valor sale de rango).
- * Usa los mismos rangos que la pantalla y la evaluacion de calidad.
+ * Usa los rangos vigentes (configuracion/rangos), los mismos de la pantalla y la evaluacion.
  */
-fun detectAlerts(reading: MilkQualityReading): List<AlertCandidate> {
+fun detectAlerts(
+    reading: MilkQualityReading,
+    ranges: QualityRanges = QualityRangesHolder.current
+): List<AlertCandidate> {
     val alerts = mutableListOf<AlertCandidate>()
+    val r = ranges
     val t = reading.temperature
     val ph = reading.ph
     val cond = reading.conductivity
     val turb = reading.turbidity
 
-    if (t > TEMP_COLD_MAX) {
+    if (t > r.tempMax) {
         alerts += AlertCandidate(
             type = "temperatura",
             severity = if (t > TEMP_AMBIENT_MAX) AlertSeverity.ALTA else AlertSeverity.MEDIA,
             value = t.toDouble(),
-            message = "Leche a %.1f°C: sobre 4°C, hay que enfriarla.".format(t)
+            message = "Leche a %.1f°C: sobre %.1f°C, hay que enfriarla.".format(t, r.tempMax)
         )
     }
-    if (ph !in 6.6f..6.8f) {
-        val severe = ph < 6.4f || ph > 7.0f
+    if (ph !in r.phMin..r.phMax) {
+        val severe = ph < r.phMin - 0.2f || ph > r.phMax + 0.2f
         alerts += AlertCandidate(
             type = "ph",
             severity = if (severe) AlertSeverity.ALTA else AlertSeverity.MEDIA,
             value = ph.toDouble(),
-            message = if (ph < 6.6f) {
+            message = if (ph < r.phMin) {
                 "pH %.2f (ácido): posible carga bacteriana.".format(ph)
             } else {
                 "pH %.2f (alcalino): posible mastitis o adulteración.".format(ph)
             }
         )
     }
-    if (cond !in 4.0f..6.0f) {
-        val severe = cond > 6.2f || cond < 3.5f
+    if (cond !in r.condMin..r.condMax) {
+        val severe = cond > r.condMax + 0.7f || cond < r.condMin - 0.5f
         alerts += AlertCandidate(
             type = "conductividad",
             severity = if (severe) AlertSeverity.ALTA else AlertSeverity.MEDIA,
             value = cond.toDouble(),
-            message = if (cond > 6.0f) {
+            message = if (cond > r.condMax) {
                 "Conductividad %.2f mS/cm (alta): posible mastitis.".format(cond)
             } else {
                 "Conductividad %.2f mS/cm (baja): posible dilución.".format(cond)
             }
         )
     }
-    if (turb < 50.0f) {
+    if (turb < r.turbMin) {
         alerts += AlertCandidate(
             type = "turbidez",
             severity = AlertSeverity.ALTA,

@@ -116,6 +116,28 @@ Campos: `idMedicion`, `idLote`, `tipo`, `severidad` (media o alta), `fecha`, `at
 `valor`, `mensaje` y `nombreLechero`. Todos los roles ven las alertas (campana con el número de pendientes);
 solo el encargado y el administrador las marcan como atendidas, y la regla solo permite cambiar `atendida`.
 
+## 10. Rangos de calidad (administrador)
+
+Menú ⋮ → **Rangos de calidad**. Se guardan en `configuracion/rangos` y se aplican en todos los teléfonos
+(semáforo, tarjetas, evaluación y alertas). Si el documento no existe, la app usa los valores de referencia.
+
+| Campo | Referencia | Uso |
+|---|---|---|
+| `tempMax` | 4 | Leche refrigerada (°C) |
+| `phMin`, `phMax` | 6,6 y 6,8 | pH normal |
+| `condMin`, `condMax` | 4,0 y 5,5 | Conductividad normal (mS/cm) |
+| `turbMin` | 50 | Turbidez mínima (%) |
+
+El campo `grasaMin` de la Tabla 20 se conserva si existe, pero la app aún no estima grasa: lo hará cuando se
+calibre la turbidez con la caja real. Actualizar la Tabla 20 del informe con `condMin` y `turbMin`.
+
+## 11. Reportes (encargado y administrador)
+
+Menú ⋮ → **Reportes**: periodo (hoy, 7 o 30 días), lote (o todos) y formato: **PDF, Excel (.xlsx), Word (.docx)
+y CSV**, uno o varios a la vez. La app genera los archivos en el teléfono y abre el menú **Compartir**
+(correo, WhatsApp, Drive…). Incluyen un resumen (cantidad, semáforo en %, promedios) y la tabla de mediciones.
+Necesitan conexión a internet para leer las mediciones (consulta Q4; con lote usa el índice `idLote` + `fechaHora`).
+
 ## Problemas comunes
 
 | Mensaje en la app | Causa y solución |

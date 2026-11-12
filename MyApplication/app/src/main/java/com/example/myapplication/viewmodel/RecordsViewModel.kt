@@ -8,6 +8,8 @@ import com.example.myapplication.data.MilkAlert
 import com.example.myapplication.data.RecordsRepository
 import com.example.myapplication.data.SavedMeasurement
 import com.example.myapplication.model.MilkQualityReading
+import com.example.myapplication.model.QualityRanges
+import com.example.myapplication.model.QualityRangesHolder
 import com.example.myapplication.model.Role
 import com.example.myapplication.model.UserSession
 import com.google.firebase.FirebaseNetworkException
@@ -35,6 +37,8 @@ data class RecordsUiState(
     /** Lista de la pantalla de alertas (pendientes o todas, segun el filtro). */
     val alerts: List<MilkAlert> = emptyList(),
     val alertsOnlyPending: Boolean = true,
+    /** Rangos de calidad vigentes (configuracion/rangos). */
+    val ranges: QualityRanges = QualityRangesHolder.current,
     /** Mensaje para mostrar una vez (snackbar). */
     val message: String? = null
 ) {
@@ -63,6 +67,7 @@ class RecordsViewModel : ViewModel() {
     private var historyListener: ListenerRegistration? = null
     private var pendingAlertsListener: ListenerRegistration? = null
     private var alertsListener: ListenerRegistration? = null
+    private var rangesListener: ListenerRegistration? = null
 
     /** Se llama al iniciar sesion. */
     fun start(newSession: UserSession) {
@@ -88,6 +93,13 @@ class RecordsViewModel : ViewModel() {
             onError = { e -> _state.update { it.copy(message = friendlyMessage(e)) } }
         )
         listenAlerts()
+        rangesListener = repository.listenRanges(
+            onChange = { ranges ->
+                QualityRangesHolder.current = ranges
+                _state.update { it.copy(ranges = ranges) }
+            },
+            onError = { e -> _state.update { it.copy(message = friendlyMessage(e)) } }
+        )
         ensureDevice(newSession)
     }
 
@@ -118,6 +130,8 @@ class RecordsViewModel : ViewModel() {
         historyListener?.remove()
         pendingAlertsListener?.remove()
         alertsListener?.remove()
+        rangesListener?.remove()
+        rangesListener = null
         lotsListener = null
         historyListener = null
         pendingAlertsListener = null
@@ -162,6 +176,25 @@ class RecordsViewModel : ViewModel() {
                 _state.update { it.copy(message = "Alerta marcada como atendida.") }
             } catch (e: Exception) {
                 _state.update { it.copy(message = "No se pudo marcar la alerta: " + friendlyMessage(e)) }
+            }
+        }
+    }
+
+    /** Solo el administrador (lo exigen las reglas). */
+    fun saveRanges(ranges: QualityRanges, onDone: () -> Unit) {
+        val error = ranges.validate()
+        if (error != null) {
+            _state.update { it.copy(message = error) }
+            return
+        }
+        _state.update { it.copy(saving = true) }
+        viewModelScope.launch {
+            try {
+                repository.saveRanges(ranges)
+                _state.update { it.copy(saving = false, message = "Rangos de calidad actualizados.") }
+                onDone()
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false, message = "No se pudieron guardar los rangos: " + friendlyMessage(e)) }
             }
         }
     }
@@ -251,6 +284,8 @@ class RecordsViewModel : ViewModel() {
     }
 
     fun messageShown() = _state.update { it.copy(message = null) }
+
+    fun showMessage(text: String) = _state.update { it.copy(message = text) }
 
     override fun onCleared() {
         stop()

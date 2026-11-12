@@ -2,6 +2,7 @@ package com.example.myapplication.data
 
 import com.example.myapplication.model.AlertSeverity
 import com.example.myapplication.model.MilkQualityReading
+import com.example.myapplication.model.QualityRanges
 import com.example.myapplication.model.detectAlerts
 import com.example.myapplication.model.QualityLevel
 import com.example.myapplication.model.UserSession
@@ -10,6 +11,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions
 import java.text.Normalizer
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -21,6 +23,9 @@ const val DEFAULT_DEVICE_ID = "caja-01"
 
 /** Cuantas mediciones muestra el historial (controla el consumo de lecturas, informe 3.10). */
 const val HISTORY_LIMIT = 50L
+
+/** Maximo de mediciones por reporte. */
+const val REPORT_LIMIT = 2000L
 
 /** Lote: la leche de un estanque en un dia (informe, Tabla 20: un lote por estanque y dia). */
 data class Lot(
@@ -168,10 +173,10 @@ class RecordsRepository(
             "nombreLechero" to session.name,
             "fechaHora" to Timestamp(Date(reading.timestamp)),
             "sensores" to mapOf(
-                "temp" to reading.temperature.toDouble(),
-                "ph" to reading.ph.toDouble(),
-                "cond" to reading.conductivity.toDouble(),
-                "turb" to reading.turbidity.toDouble()
+                "temp" to reading.temperature.clean(),
+                "ph" to reading.ph.clean(),
+                "cond" to reading.conductivity.clean(),
+                "turb" to reading.turbidity.clean()
             ),
             "resultado" to mapOf(
                 "estado" to statusFor(assessment.level),
@@ -273,6 +278,72 @@ class RecordsRepository(
         alerts.document(alertId).update("atendida", true).await()
     }
 
+    // ---------------------------------------------------------------- reportes
+
+    /**
+     * Mediciones de un periodo (consulta Q4 del informe), opcionalmente de un lote,
+     * de la mas nueva a la mas antigua. Solo encargado y administrador (lo exigen las reglas).
+     */
+    suspend fun fetchForReport(from: Date, to: Date, lotId: String?): List<SavedMeasurement> {
+        var query: Query = measurements
+        if (lotId != null) {
+            query = query.whereEqualTo("idLote", lotId)
+        }
+        return query.whereGreaterThanOrEqualTo("fechaHora", Timestamp(from))
+            .whereLessThanOrEqualTo("fechaHora", Timestamp(to))
+            .orderBy("fechaHora", Query.Direction.DESCENDING)
+            .limit(REPORT_LIMIT)
+            .get().await()
+            .documents.mapNotNull { it.toMeasurement() }
+    }
+
+    // ------------------------------------------------------------------ rangos
+
+    private val rangesDoc = db.collection("configuracion").document("rangos")
+
+    /** Rangos vigentes en tiempo real; si el documento no existe, se usan los valores por defecto. */
+    fun listenRanges(
+        onChange: (QualityRanges) -> Unit,
+        onError: (Exception) -> Unit
+    ): ListenerRegistration =
+        rangesDoc.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                onError(error)
+            } else {
+                val d = QualityRanges()
+                if (snapshot == null || !snapshot.exists()) {
+                    onChange(d)
+                } else {
+                    fun num(field: String, default: Float) = snapshot.getDouble(field)?.toFloat() ?: default
+                    onChange(
+                        QualityRanges(
+                            tempMax = num("tempMax", d.tempMax),
+                            phMin = num("phMin", d.phMin),
+                            phMax = num("phMax", d.phMax),
+                            condMin = num("condMin", d.condMin),
+                            condMax = num("condMax", d.condMax),
+                            turbMin = num("turbMin", d.turbMin)
+                        )
+                    )
+                }
+            }
+        }
+
+    /** Guarda los rangos (solo el administrador, segun las reglas). Conserva otros campos, como grasaMin. */
+    suspend fun saveRanges(ranges: QualityRanges) {
+        rangesDoc.set(
+            mapOf(
+                "tempMax" to ranges.tempMax.toDouble(),
+                "phMin" to ranges.phMin.toDouble(),
+                "phMax" to ranges.phMax.toDouble(),
+                "condMin" to ranges.condMin.toDouble(),
+                "condMax" to ranges.condMax.toDouble(),
+                "turbMin" to ranges.turbMin.toDouble()
+            ),
+            SetOptions.merge()
+        ).await()
+    }
+
     // ------------------------------------------------------------- utilidades
 
     private fun DocumentSnapshot.toAlert(): MilkAlert? {
@@ -320,6 +391,9 @@ class RecordsRepository(
             title = getString("resultado.titulo").orEmpty()
         )
     }
+
+    /** Float a Double sin ruido de redondeo (6.7f -> 6.7 y no 6.699999809). */
+    private fun Float.clean(): Double = toString().toDouble()
 
     companion object {
         /** Semaforo del informe (RF3): verde, ambar o rojo. */

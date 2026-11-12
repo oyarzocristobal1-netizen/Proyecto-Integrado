@@ -21,15 +21,18 @@ data class MilkQualityReading(
         get() = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(timestamp))
 
     val phStatus: PhStatus
-        get() = when {
-            ph in 6.6f..6.8f -> PhStatus.NORMAL
-            ph < 6.6f -> PhStatus.ACIDIC
-            else -> PhStatus.ALKALINE
+        get() {
+            val r = QualityRangesHolder.current
+            return when {
+                ph in r.phMin..r.phMax -> PhStatus.NORMAL
+                ph < r.phMin -> PhStatus.ACIDIC
+                else -> PhStatus.ALKALINE
+            }
         }
 
     val temperatureStatus: TemperatureStatus
         get() = when {
-            temperature <= TEMP_COLD_MAX -> TemperatureStatus.COLD
+            temperature <= QualityRangesHolder.current.tempMax -> TemperatureStatus.COLD
             temperature <= TEMP_AMBIENT_MAX -> TemperatureStatus.AMBIENT
             else -> TemperatureStatus.HIGH
         }
@@ -38,20 +41,17 @@ data class MilkQualityReading(
         get() = evaluateQuality(ph, conductivity, turbidity, temperature)
 }
 
-/** Estado de la temperatura de la leche: fria (<= 4 C), ambiente (4 a 25 C) o alta (> 25 C). */
+/** Estado de la temperatura: fria (hasta tempMax), ambiente (hasta 25 °C) o alta. */
 enum class TemperatureStatus(val label: String) {
     COLD("FRÍA"),
     AMBIENT("AMBIENTE"),
     HIGH("ALTA")
 }
 
-const val TEMP_COLD_MAX = 4.0f
-const val TEMP_AMBIENT_MAX = 25.0f
-
 enum class PhStatus(val label: String, val description: String) {
-    NORMAL("pH Normal", "Valor óptimo para leche fresca (6.6 - 6.8)."),
-    ACIDIC("pH Ácido (< 6.6)", "Posible proliferación bacteriana o leche alterada/corta."),
-    ALKALINE("pH Alcalino (> 6.8)", "Posible presencia de mastitis o adulteración con neutralizantes.")
+    NORMAL("pH Normal", "Valor óptimo para leche fresca."),
+    ACIDIC("pH Ácido", "Posible proliferación bacteriana o leche alterada/corta."),
+    ALKALINE("pH Alcalino", "Posible presencia de mastitis o adulteración con neutralizantes.")
 }
 
 enum class QualityLevel {
@@ -68,48 +68,54 @@ data class MilkQualityAssessment(
     val recommendations: List<String>
 )
 
-fun evaluateQuality(ph: Float, conductivity: Float, turbidity: Float, temperature: Float): MilkQualityAssessment {
-    // Standard raw milk parameters:
-    // pH: 6.6 - 6.8
-    // Conductivity: 4.0 - 5.5 mS/cm (higher indicates mastitis/salt addition, lower indicates water addition)
-    // Turbidity: > 70% (lower indicates dilution with water)
-    // Temp: <= 4.0°C cold storage; 4-25°C ambient (cool before storing); > 25°C too high
+/** Margen bajo el pH minimo que se considera "levemente acido" (y no un rechazo). */
+private const val PH_MARGIN = 0.2f
 
-    val phOk = ph in 6.6f..6.8f
-    val phSubAcid = ph in 6.4f..6.59f
-    val condOk = conductivity in 4.0f..6.0f
-    val turbOk = turbidity >= 50.0f
+/** Evalua la calidad con los rangos vigentes (configuracion/rangos). */
+fun evaluateQuality(
+    ph: Float,
+    conductivity: Float,
+    turbidity: Float,
+    temperature: Float,
+    ranges: QualityRanges = QualityRangesHolder.current
+): MilkQualityAssessment {
+    val r = ranges
+    val phOk = ph in r.phMin..r.phMax
+    val phSubAcid = ph >= r.phMin - PH_MARGIN && ph < r.phMin
+    val condOk = conductivity in r.condMin..r.condMax
+    val turbOk = turbidity >= r.turbMin
 
     val issues = mutableListOf<String>()
     val recs = mutableListOf<String>()
 
-    if (ph < 6.4f) {
+    if (ph < r.phMin - PH_MARGIN) {
         issues.add("pH severamente bajo ($ph)")
         recs.add("Descartar lote o destinar a procesos industriales autorizados. Alta carga ácida.")
     } else if (phSubAcid) {
         issues.add("pH levemente ácido ($ph)")
         recs.add("Verificar la cadena de frío e higiene en el ordeño.")
-    } else if (ph > 6.8f) {
+    } else if (ph > r.phMax) {
         issues.add("pH alcalino ($ph)")
         recs.add("Verificar salud del hato (posible mastitis) o detección de substancias alcalinas.")
     }
 
-    if (turbidity < 50.0f) {
+    if (!turbOk) {
         issues.add("Turbidez baja ($turbidity%)")
         recs.add("Inspeccionar posible aguado o adulteración con líquidos transparentes.")
     }
 
-    if (conductivity > 6.2f) {
+    if (conductivity > r.condMax) {
         issues.add("Conductividad elevada ($conductivity mS/cm)")
         recs.add("Realizar prueba CMT (California Mastitis Test) a vacas sospechosas.")
-    } else if (conductivity < 3.5f && conductivity > 0.1f) {
-        issues.add("Conductividad anormalmente baja ($conductivity mS/cm)")
+    } else if (conductivity < r.condMin && conductivity > 0.1f) {
+        issues.add("Conductividad baja ($conductivity mS/cm)")
         recs.add("Posible alteración o dilución del producto.")
     }
 
     val tempText = "%.1f".format(temperature)
+    val maxText = "%.1f".format(r.tempMax)
     val tempHigh = temperature > TEMP_AMBIENT_MAX
-    val tempCold = temperature <= TEMP_COLD_MAX
+    val tempCold = temperature <= r.tempMax
 
     return when {
         phOk && condOk && turbOk && tempHigh -> MilkQualityAssessment(
@@ -117,27 +123,27 @@ fun evaluateQuality(ph: Float, conductivity: Float, turbidity: Float, temperatur
             title = "Precaución / Temperatura alta",
             summary = "pH, conductividad y turbidez están en rango, pero la leche está a $tempText°C (más de 25°C).",
             recommendations = listOf(
-                "Enfriar la leche a 4°C o menos lo antes posible.",
+                "Enfriar la leche a $maxText°C o menos lo antes posible.",
                 "Repetir la medición cuando la temperatura baje."
             )
         )
         phOk && condOk && turbOk -> MilkQualityAssessment(
             level = QualityLevel.EXCELLENT,
             title = "Calidad Excelente",
-            summary = "Todos los parámetros (pH, CE, Turbidez) están dentro de los rangos óptimos para leche de alta calidad.",
+            summary = "Todos los parámetros (pH, CE, Turbidez) están dentro de los rangos vigentes.",
             recommendations = if (tempCold) {
-                listOf("Apta para almacenamiento en frío y comercialización directa.", "Mantener cadena de frío (≤ 4°C).")
+                listOf("Apta para almacenamiento en frío y comercialización directa.", "Mantener cadena de frío (≤ $maxText°C).")
             } else {
                 listOf(
-                    "La leche está a $tempText°C: enfriarla a 4°C o menos antes de almacenarla.",
-                    "Una vez enfriada, mantener la cadena de frío (≤ 4°C)."
+                    "La leche está a $tempText°C: enfriarla a $maxText°C o menos antes de almacenarla.",
+                    "Una vez enfriada, mantener la cadena de frío (≤ $maxText°C)."
                 )
             }
         )
         phOk && (condOk || turbOk) -> MilkQualityAssessment(
             level = QualityLevel.ACCEPTABLE,
             title = "Calidad Aceptable",
-            summary = "pH dentro del rango normal. Presenta ligeras variaciones en conductividad o turbidez.",
+            summary = "pH dentro del rango normal. Presenta variaciones en conductividad o turbidez.",
             recommendations = recs.ifEmpty { listOf("Supervisar temperatura de almacenamiento y repetir medición.") }
         )
         phSubAcid -> MilkQualityAssessment(

@@ -44,12 +44,15 @@ fun MilkQualityScreen(
     onOpenUserManagement: () -> Unit,
     onOpenLots: () -> Unit,
     onOpenAlerts: () -> Unit,
+    onOpenReports: () -> Unit,
+    onOpenRanges: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val role = session.role
     val records by recordsViewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var showLotPicker by rememberSaveable { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(records.message) {
         val message = records.message
@@ -88,15 +91,6 @@ fun MilkQualityScreen(
                     }
                 },
                 actions = {
-                    // Configuracion y codigo de la caja: solo quien puede calibrar el dispositivo (administrador)
-                    if (role.canCalibrateDevice) {
-                        IconButton(onClick = { viewModel.setShowCodeGuideDialog(true) }) {
-                            Icon(Icons.Default.Code, contentDescription = "Código Arduino")
-                        }
-                    }
-                    IconButton(onClick = { viewModel.setShowDeviceDialog(true) }) {
-                        Icon(Icons.Default.Bluetooth, contentDescription = "Conectar Bluetooth")
-                    }
                     // Alertas: todos los roles las reciben; el numero son las pendientes
                     IconButton(onClick = onOpenAlerts) {
                         BadgedBox(
@@ -109,18 +103,39 @@ fun MilkQualityScreen(
                             Icon(Icons.Default.Notifications, contentDescription = "Alertas")
                         }
                     }
-                    if (role.canEditLots) {
-                        IconButton(onClick = onOpenLots) {
-                            Icon(Icons.Default.Inventory2, contentDescription = "Lotes")
-                        }
+                    IconButton(onClick = { viewModel.setShowDeviceDialog(true) }) {
+                        Icon(Icons.Default.Bluetooth, contentDescription = "Conectar Bluetooth")
                     }
-                    if (role.canManageUsers) {
-                        IconButton(onClick = onOpenUserManagement) {
-                            Icon(Icons.Default.ManageAccounts, contentDescription = "Gestión de usuarios")
+                    // Menu con el resto de las opciones, segun el rol (Tabla 31)
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Más opciones")
                         }
-                    }
-                    IconButton(onClick = onLogout) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Cerrar sesión")
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            if (role.canEditLots) {
+                                MenuOption("Lotes", Icons.Default.Inventory2) { showMenu = false; onOpenLots() }
+                            }
+                            if (role.canExportReports) {
+                                MenuOption("Reportes", Icons.Default.Description) { showMenu = false; onOpenReports() }
+                            }
+                            if (role.canEditQualityRanges) {
+                                MenuOption("Rangos de calidad", Icons.Default.Tune) { showMenu = false; onOpenRanges() }
+                            }
+                            if (role.canManageUsers) {
+                                MenuOption("Gestión de usuarios", Icons.Default.ManageAccounts) {
+                                    showMenu = false
+                                    onOpenUserManagement()
+                                }
+                            }
+                            if (role.canCalibrateDevice) {
+                                MenuOption("Código de la caja", Icons.Default.Code) {
+                                    showMenu = false
+                                    viewModel.setShowCodeGuideDialog(true)
+                                }
+                            }
+                            HorizontalDivider()
+                            MenuOption("Cerrar sesión", Icons.AutoMirrored.Filled.Logout) { showMenu = false; onLogout() }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -298,7 +313,7 @@ fun MilkQualityScreen(
                             TemperatureStatus.HIGH -> SensorStatus.ALERT
                         },
                         icon = Icons.Default.Thermostat,
-                        referenceRange = "≤ 4°C (frío)",
+                        referenceRange = "≤ %.1f°C (frío)".format(records.ranges.tempMax),
                         progress = (currentReading.temperature / 30.0f).coerceIn(0f, 1f),
                         modifier = Modifier
                             .weight(1f)
@@ -322,7 +337,7 @@ fun MilkQualityScreen(
                             PhStatus.ALKALINE -> SensorStatus.WARNING
                         },
                         icon = Icons.Default.Science,
-                        referenceRange = "6.60 - 6.80",
+                        referenceRange = "%.2f - %.2f".format(records.ranges.phMin, records.ranges.phMax),
                         progress = ((currentReading.ph - 5.0f) / 4.0f).coerceIn(0f, 1f),
                         modifier = Modifier
                             .weight(1f)
@@ -340,7 +355,7 @@ fun MilkQualityScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Conductividad Card
-                    val condOk = currentReading.conductivity in 4.0f..6.0f
+                    val condOk = currentReading.conductivity in records.ranges.condMin..records.ranges.condMax
                     SensorCard(
                         title = "Conductividad",
                         valueString = "%.2f".format(currentReading.conductivity),
@@ -348,7 +363,7 @@ fun MilkQualityScreen(
                         statusText = if (condOk) "NORMAL" else "REVISAR",
                         status = if (condOk) SensorStatus.GOOD else SensorStatus.WARNING,
                         icon = Icons.Default.ElectricBolt,
-                        referenceRange = "4.00 - 5.50 mS/cm",
+                        referenceRange = "%.2f - %.2f mS/cm".format(records.ranges.condMin, records.ranges.condMax),
                         progress = (currentReading.conductivity / 8.0f).coerceIn(0f, 1f),
                         modifier = Modifier
                             .weight(1f)
@@ -356,7 +371,7 @@ fun MilkQualityScreen(
                     )
 
                     // Turbidez Card
-                    val turbOk = currentReading.turbidity >= 50.0f
+                    val turbOk = currentReading.turbidity >= records.ranges.turbMin
                     SensorCard(
                         title = "Turbidez",
                         valueString = "%.1f".format(currentReading.turbidity),
@@ -364,7 +379,7 @@ fun MilkQualityScreen(
                         statusText = if (turbOk) "OPACA" else "DILUIDA",
                         status = if (turbOk) SensorStatus.GOOD else SensorStatus.ALERT,
                         icon = Icons.Default.WaterDrop,
-                        referenceRange = "> 50.0 %",
+                        referenceRange = "≥ %.1f %%".format(records.ranges.turbMin),
                         progress = currentReading.turbidity / 100.0f,
                         modifier = Modifier
                             .weight(1f)
@@ -520,4 +535,13 @@ private fun UserRoleCard(session: UserSession) {
             )
         }
     }
+}
+
+@Composable
+private fun MenuOption(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(text) },
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        onClick = onClick
+    )
 }

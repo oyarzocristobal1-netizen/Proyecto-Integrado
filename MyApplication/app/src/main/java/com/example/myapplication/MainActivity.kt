@@ -23,12 +23,15 @@ import com.example.myapplication.ui.AlertsScreen
 import com.example.myapplication.ui.LoginScreen
 import com.example.myapplication.ui.LotsScreen
 import com.example.myapplication.ui.MilkQualityScreen
+import com.example.myapplication.ui.RangesScreen
+import com.example.myapplication.ui.ReportsScreen
 import com.example.myapplication.ui.UserManagementScreen
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.viewmodel.AuthUiState
 import com.example.myapplication.viewmodel.AuthViewModel
 import com.example.myapplication.viewmodel.MilkQualityViewModel
 import com.example.myapplication.viewmodel.RecordsViewModel
+import com.example.myapplication.viewmodel.ReportsViewModel
 import com.example.myapplication.viewmodel.UserManagementViewModel
 
 class MainActivity : ComponentActivity() {
@@ -37,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private val authViewModel: AuthViewModel by viewModels()
     private val userManagementViewModel: UserManagementViewModel by viewModels()
     private val recordsViewModel: RecordsViewModel by viewModels()
+    private val reportsViewModel: ReportsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,6 +85,21 @@ class MainActivity : ComponentActivity() {
                                     onBack = { screen = SCREEN_MAIN }
                                 )
 
+                                screen == SCREEN_REPORTS && session.role.canExportReports -> {
+                                    val records by recordsViewModel.state.collectAsState()
+                                    ReportsScreen(
+                                        viewModel = reportsViewModel,
+                                        session = session,
+                                        lots = records.lots,
+                                        onBack = { screen = SCREEN_MAIN }
+                                    )
+                                }
+
+                                screen == SCREEN_RANGES && session.role.canEditQualityRanges -> RangesScreen(
+                                    viewModel = recordsViewModel,
+                                    onBack = { screen = SCREEN_MAIN }
+                                )
+
                                 screen == SCREEN_ALERTS -> AlertsScreen(
                                     viewModel = recordsViewModel,
                                     session = session,
@@ -99,7 +118,9 @@ class MainActivity : ComponentActivity() {
                                     onLogout = logout,
                                     onOpenUserManagement = { screen = SCREEN_USERS },
                                     onOpenLots = { screen = SCREEN_LOTS },
-                                    onOpenAlerts = { screen = SCREEN_ALERTS }
+                                    onOpenAlerts = { screen = SCREEN_ALERTS },
+                                    onOpenReports = { screen = SCREEN_REPORTS },
+                                    onOpenRanges = { screen = SCREEN_RANGES }
                                 )
                             }
                         }
@@ -114,3 +135,5 @@ private const val SCREEN_MAIN = "principal"
 private const val SCREEN_LOTS = "lotes"
 private const val SCREEN_USERS = "usuarios"
 private const val SCREEN_ALERTS = "alertas"
+private const val SCREEN_REPORTS = "reportes"
+private const val SCREEN_RANGES = "rangos"
