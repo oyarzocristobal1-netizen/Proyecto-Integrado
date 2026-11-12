@@ -17,14 +17,14 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 enum class DemoScenario(val title: String, val description: String, val baseTemp: Float, val basePh: Float, val baseCond: Float, val baseTurb: Float) {
-    NORMAL("Muestra Normal", "Leche fresca en rango óptimo (pH 6.7)", 22.0f, 6.70f, 4.8f, 85.0f),
+    NORMAL("Muestra Normal", "Leche fresca refrigerada en rango óptimo (3.8°C, pH 6.7)", 3.8f, 6.70f, 4.8f, 85.0f),
     ACIDIC_BACTERIAL("Muestra Ácida", "Carga bacteriana / Leche lista para cortar (pH 6.2)", 24.5f, 6.25f, 5.8f, 75.0f),
     ALKALINE_MASTITIS("Muestra Mastítica", "Posible infección / pH elevado (pH 7.1)", 25.0f, 7.15f, 6.8f, 60.0f),
     DILUTED_WATER("Muestra Diluida", "Posible aguado / Turbidez reducida (pH 6.6)", 21.0f, 6.60f, 2.8f, 35.0f)
 }
 
 data class MilkQualityUiState(
-    val currentReading: MilkQualityReading = MilkQualityReading(temperature = 22.0f, ph = 6.70f, conductivity = 4.8f, turbidity = 85.0f),
+    val currentReading: MilkQualityReading = MilkQualityReading(temperature = 3.8f, ph = 6.70f, conductivity = 4.8f, turbidity = 85.0f),
     val connectionState: BluetoothConnectionState = BluetoothConnectionState.Disconnected,
     val isDemoMode: Boolean = true,
     val selectedScenario: DemoScenario = DemoScenario.NORMAL,

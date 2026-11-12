@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 
 import com.example.myapplication.bluetooth.BluetoothConnectionState
 import com.example.myapplication.model.PhStatus
+import com.example.myapplication.model.TemperatureStatus
 import com.example.myapplication.ui.components.*
 import com.example.myapplication.viewmodel.DemoScenario
 import com.example.myapplication.viewmodel.MilkQualityViewModel
@@ -219,19 +220,29 @@ fun MilkQualityScreen(
             // Item 5: Row 1 - Temperature & pH Cards
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Temperatura Card
+                    val tempStatus = currentReading.temperatureStatus
                     SensorCard(
                         title = "Temperatura",
                         valueString = "%.1f".format(currentReading.temperature),
                         unit = "°C",
-                        statusText = if (currentReading.temperature in 10f..25f || currentReading.temperature <= 4f) "OK" else "ALTA",
-                        status = if (currentReading.temperature in 10f..25f || currentReading.temperature <= 4f) SensorStatus.GOOD else SensorStatus.WARNING,
+                        statusText = tempStatus.label,
+                        status = when (tempStatus) {
+                            TemperatureStatus.COLD -> SensorStatus.GOOD
+                            TemperatureStatus.AMBIENT -> SensorStatus.WARNING
+                            TemperatureStatus.HIGH -> SensorStatus.ALERT
+                        },
                         icon = Icons.Default.Thermostat,
-                        referenceRange = "< 4°C (Frío) / 15-25°C",
-                        modifier = Modifier.weight(1f)
+                        referenceRange = "≤ 4°C (frío)",
+                        progress = (currentReading.temperature / 30.0f).coerceIn(0f, 1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
 
                     // pH Card
@@ -253,7 +264,9 @@ fun MilkQualityScreen(
                         icon = Icons.Default.Science,
                         referenceRange = "6.60 - 6.80",
                         progress = ((currentReading.ph - 5.0f) / 4.0f).coerceIn(0f, 1f),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                 }
             }
@@ -261,7 +274,9 @@ fun MilkQualityScreen(
             // Item 6: Row 2 - Conductividad & Turbidez Cards
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Conductividad Card
@@ -274,7 +289,10 @@ fun MilkQualityScreen(
                         status = if (condOk) SensorStatus.GOOD else SensorStatus.WARNING,
                         icon = Icons.Default.ElectricBolt,
                         referenceRange = "4.00 - 5.50 mS/cm",
-                        modifier = Modifier.weight(1f)
+                        progress = (currentReading.conductivity / 8.0f).coerceIn(0f, 1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
 
                     // Turbidez Card
@@ -288,7 +306,9 @@ fun MilkQualityScreen(
                         icon = Icons.Default.WaterDrop,
                         referenceRange = "> 50.0 %",
                         progress = currentReading.turbidity / 100.0f,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                 }
             }
