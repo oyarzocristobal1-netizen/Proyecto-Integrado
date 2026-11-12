@@ -1,0 +1,59 @@
+// Reglas de seguridad de Cloud Firestore - Proyecto Integrado (calidad de la leche)
+// Coherentes con la Tabla 31 (matriz de permisos por rol) del informe.
+// Se publican en la consola: Firestore Database -> Reglas -> pegar este archivo -> Publicar.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function logueado() {
+      return request.auth != null && request.auth.token.email_verified;
+    }
+    function rol() {
+      return get(/databases/$(db)/documents/usuarios/$(request.auth.uid)).data.rol;
+    }
+    function esAdmin() { return logueado() && rol() == 'admin'; }
+    function esEncargado() { return logueado() && rol() in ['admin', 'encargado']; }
+    function existe(col, id) {
+      return exists(/databases/$(db)/documents/$(col)/$(id));
+    }
+
+    match /usuarios/{uid} {
+      allow read: if logueado() && (request.auth.uid == uid || esAdmin());
+      allow write: if esAdmin();
+    }
+    match /dispositivos/{id} {
+      allow read: if logueado();
+      allow write: if esAdmin();
+    }
+    match /lotes/{id} {
+      allow read: if logueado();
+      allow create: if logueado() && request.resource.data.creadoPor == request.auth.uid;
+      allow update: if esEncargado();
+      allow delete: if false;
+    }
+    match /mediciones/{id} {
+      allow read: if esEncargado()
+                  || (logueado() && resource.data.uidOperario == request.auth.uid);
+      allow create: if logueado()
+        && request.resource.data.uidOperario == request.auth.uid
+        && request.resource.data.fechaHora is timestamp
+        && request.resource.data.sensores.temp is number
+        && request.resource.data.sensores.ph is number
+        && request.resource.data.sensores.ph >= 0 && request.resource.data.sensores.ph <= 14
+        && existe('lotes', request.resource.data.idLote)
+        && existe('dispositivos', request.resource.data.idDispositivo);
+      allow update, delete: if false;          // mediciones inmutables
+    }
+    match /alertas/{id} {
+      allow read: if logueado();
+      allow create: if logueado()
+        && existe('mediciones', request.resource.data.idMedicion);
+      allow update: if esEncargado()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['atendida']);
+    }
+    match /calibraciones/{id} { allow read, write: if esAdmin(); }
+    match /configuracion/{id} { allow read: if logueado(); allow write: if esAdmin(); }
+    // Todo lo demás queda denegado por defecto
+  }
+}

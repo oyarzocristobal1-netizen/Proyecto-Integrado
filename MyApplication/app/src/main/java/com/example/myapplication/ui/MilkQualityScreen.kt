@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -21,6 +22,8 @@ import androidx.compose.ui.unit.dp
 
 import com.example.myapplication.bluetooth.BluetoothConnectionState
 import com.example.myapplication.model.PhStatus
+import com.example.myapplication.model.Role
+import com.example.myapplication.model.UserSession
 import com.example.myapplication.model.TemperatureStatus
 import com.example.myapplication.ui.components.*
 import com.example.myapplication.viewmodel.DemoScenario
@@ -30,8 +33,11 @@ import com.example.myapplication.viewmodel.MilkQualityViewModel
 @Composable
 fun MilkQualityScreen(
     viewModel: MilkQualityViewModel,
+    session: UserSession,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val role = session.role
     val uiState by viewModel.uiState.collectAsState()
     val currentReading = uiState.currentReading
 
@@ -62,11 +68,17 @@ fun MilkQualityScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.setShowCodeGuideDialog(true) }) {
-                        Icon(Icons.Default.Code, contentDescription = "Código Arduino")
+                    // Configuracion y codigo de la caja: solo quien puede calibrar el dispositivo (administrador)
+                    if (role.canCalibrateDevice) {
+                        IconButton(onClick = { viewModel.setShowCodeGuideDialog(true) }) {
+                            Icon(Icons.Default.Code, contentDescription = "Código Arduino")
+                        }
                     }
                     IconButton(onClick = { viewModel.setShowDeviceDialog(true) }) {
                         Icon(Icons.Default.Bluetooth, contentDescription = "Conectar Bluetooth")
+                    }
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Cerrar sesión")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -83,6 +95,11 @@ fun MilkQualityScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Item 0: Usuario con sesion iniciada y su rol
+            item {
+                UserRoleCard(session = session)
+            }
+
             // Item 1: Bluetooth Connection Status Card
             item {
                 Card(
@@ -321,11 +338,16 @@ fun MilkQualityScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Historial de Mediciones (${uiState.history.size})",
+                        text = if (role.canViewAllHistory) {
+                            "Historial de Mediciones (${uiState.history.size})"
+                        } else {
+                            "Mis Mediciones (${uiState.history.size})"
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    if (uiState.history.isNotEmpty()) {
+                    // Las mediciones son inmutables (informe, seccion 6.2): solo el administrador limpia la vista local.
+                    if (uiState.history.isNotEmpty() && role == Role.ADMIN) {
                         TextButton(onClick = { viewModel.clearHistory() }) {
                             Text("Limpiar")
                         }
@@ -422,5 +444,65 @@ fun MilkQualityScreen(
         ArduinoCodeDialog(
             onDismiss = { viewModel.setShowCodeGuideDialog(false) }
         )
+    }
+}
+
+/** Tarjeta con el nombre del usuario, su rol y lo que ese rol puede hacer (Tabla 31). */
+@Composable
+private fun UserRoleCard(session: UserSession) {
+    val role = session.role
+    val permissions = buildList {
+        add("medir")
+        add(if (role.canViewAllHistory) "ver todo el historial" else "ver sus mediciones")
+        if (role.canEditLots) add("editar lotes")
+        if (role.canAttendAlerts) add("atender alertas")
+        if (role.canExportReports) add("exportar reportes")
+        if (role.canCalibrateDevice) add("calibrar")
+        if (role.canManageUsers) add("gestionar usuarios")
+        if (role.canEditQualityRanges) add("cambiar rangos")
+    }
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AccountCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = session.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Text(
+                        text = role.label.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Puede: " + permissions.joinToString(", ") + ".",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
