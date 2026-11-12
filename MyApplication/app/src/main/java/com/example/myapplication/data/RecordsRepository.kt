@@ -1,0 +1,226 @@
+package com.example.myapplication.data
+
+import com.example.myapplication.model.MilkQualityReading
+import com.example.myapplication.model.QualityLevel
+import com.example.myapplication.model.UserSession
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query
+import java.text.Normalizer
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
+
+/** Caja de sensores registrada en Firestore (coleccion "dispositivos"). */
+const val DEFAULT_DEVICE_ID = "caja-01"
+
+/** Cuantas mediciones muestra el historial (controla el consumo de lecturas, informe 3.10). */
+const val HISTORY_LIMIT = 50L
+
+/** Lote: la leche de un estanque en un dia (informe, Tabla 20: un lote por estanque y dia). */
+data class Lot(
+    val id: String,
+    val tank: String,
+    val date: Date,
+    val createdBy: String,
+    val createdByName: String,
+    val note: String
+)
+
+/** Medicion guardada (inmutable). */
+data class SavedMeasurement(
+    val id: String,
+    val dateTime: Date,
+    val lotId: String,
+    val deviceId: String,
+    val milkerUid: String,
+    val milkerName: String,
+    val temperature: Double,
+    val ph: Double,
+    val conductivity: Double,
+    val turbidity: Double,
+    /** verde, ambar o rojo */
+    val status: String,
+    val title: String
+)
+
+/**
+ * Lotes y mediciones en Cloud Firestore. Firestore guarda una copia local en el telefono:
+ * sin conexion las escrituras quedan en cola y se suben solas al volver la red.
+ */
+class RecordsRepository(
+    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+) {
+    private val lots = db.collection("lotes")
+    private val measurements = db.collection("mediciones")
+
+    // ------------------------------------------------------------------ lotes
+
+    /** Lotes recientes, del mas nuevo al mas antiguo, actualizados en tiempo real. */
+    fun listenRecentLots(
+        onChange: (List<Lot>) -> Unit,
+        onError: (Exception) -> Unit
+    ): ListenerRegistration =
+        lots.orderBy("fecha", Query.Direction.DESCENDING)
+            .limit(30)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(error)
+                } else if (snapshot != null) {
+                    onChange(snapshot.documents.mapNotNull { it.toLot() })
+                }
+            }
+
+    /**
+     * Devuelve el lote de hoy para ese estanque, o lo crea. El ID es fecha + estanque,
+     * asi no se duplica aunque dos personas lo creen a la vez.
+     */
+    suspend fun getOrCreateTodayLot(tank: String, session: UserSession): Lot {
+        val cleanTank = tank.trim()
+        val now = Date()
+        val id = lotIdFor(cleanTank, now)
+        val existing = runCatching { lots.document(id).get().await() }.getOrNull()
+        if (existing != null && existing.exists()) {
+            existing.toLot()?.let { return it }
+        }
+        val data = mapOf(
+            "estanque" to cleanTank,
+            "fecha" to Timestamp(now),
+            "creadoPor" to session.uid,
+            "nombreCreador" to session.name,
+            "observacion" to ""
+        )
+        // Sin esperar al servidor: funciona sin conexion y se sincroniza despues.
+        lots.document(id).set(data)
+        return Lot(id, cleanTank, now, session.uid, session.name, "")
+    }
+
+    /** Editar un lote (solo encargado y administrador, segun las reglas). */
+    suspend fun updateLot(lotId: String, tank: String, note: String) {
+        lots.document(lotId).update(
+            mapOf(
+                "estanque" to tank.trim(),
+                "observacion" to note.trim()
+            )
+        ).await()
+    }
+
+    // ------------------------------------------------------------ mediciones
+
+    /**
+     * Guarda la lectura actual como medicion del lote. No espera al servidor (modo sin conexion);
+     * si las reglas la rechazan, se avisa por onError.
+     */
+    fun saveMeasurement(
+        reading: MilkQualityReading,
+        lotId: String,
+        session: UserSession,
+        onError: (Exception) -> Unit
+    ): String {
+        val id = UUID.randomUUID().toString()
+        val assessment = reading.overallAssessment
+        val data = mapOf(
+            "idDispositivo" to DEFAULT_DEVICE_ID,
+            "idLote" to lotId,
+            "uidLechero" to session.uid,
+            "nombreLechero" to session.name,
+            "fechaHora" to Timestamp(Date(reading.timestamp)),
+            "sensores" to mapOf(
+                "temp" to reading.temperature.toDouble(),
+                "ph" to reading.ph.toDouble(),
+                "cond" to reading.conductivity.toDouble(),
+                "turb" to reading.turbidity.toDouble()
+            ),
+            "resultado" to mapOf(
+                "estado" to statusFor(assessment.level),
+                "titulo" to assessment.title
+            )
+        )
+        measurements.document(id).set(data).addOnFailureListener { onError(it) }
+        return id
+    }
+
+    /**
+     * Historial en tiempo real segun el rol (consultas Q1 a Q3 del informe):
+     * - encargado o administrador: todas, o solo las de un lote;
+     * - lechero: solo las propias (la regla de Firestore exige este filtro).
+     */
+    fun listenHistory(
+        session: UserSession,
+        lotId: String?,
+        onChange: (List<SavedMeasurement>) -> Unit,
+        onError: (Exception) -> Unit
+    ): ListenerRegistration {
+        var query: Query = measurements
+        if (!session.role.canViewAllHistory) {
+            query = query.whereEqualTo("uidLechero", session.uid)
+        }
+        if (lotId != null) {
+            query = query.whereEqualTo("idLote", lotId)
+        }
+        return query.orderBy("fechaHora", Query.Direction.DESCENDING)
+            .limit(HISTORY_LIMIT)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(error)
+                } else if (snapshot != null) {
+                    onChange(snapshot.documents.mapNotNull { it.toMeasurement() })
+                }
+            }
+    }
+
+    // ------------------------------------------------------------- utilidades
+
+    private fun DocumentSnapshot.toLot(): Lot? {
+        val date = getTimestamp("fecha")?.toDate() ?: return null
+        return Lot(
+            id = id,
+            tank = getString("estanque").orEmpty(),
+            date = date,
+            createdBy = getString("creadoPor").orEmpty(),
+            createdByName = getString("nombreCreador").orEmpty(),
+            note = getString("observacion").orEmpty()
+        )
+    }
+
+    private fun DocumentSnapshot.toMeasurement(): SavedMeasurement? {
+        val date = getTimestamp("fechaHora")?.toDate() ?: return null
+        return SavedMeasurement(
+            id = id,
+            dateTime = date,
+            lotId = getString("idLote").orEmpty(),
+            deviceId = getString("idDispositivo").orEmpty(),
+            milkerUid = getString("uidLechero").orEmpty(),
+            milkerName = getString("nombreLechero").orEmpty(),
+            temperature = getDouble("sensores.temp") ?: 0.0,
+            ph = getDouble("sensores.ph") ?: 0.0,
+            conductivity = getDouble("sensores.cond") ?: 0.0,
+            turbidity = getDouble("sensores.turb") ?: 0.0,
+            status = getString("resultado.estado").orEmpty(),
+            title = getString("resultado.titulo").orEmpty()
+        )
+    }
+
+    companion object {
+        /** Semaforo del informe (RF3): verde, ambar o rojo. */
+        fun statusFor(level: QualityLevel): String = when (level) {
+            QualityLevel.EXCELLENT -> "verde"
+            QualityLevel.ACCEPTABLE, QualityLevel.WARNING -> "ambar"
+            QualityLevel.REJECTED -> "rojo"
+        }
+
+        /** ID del lote: 20261112-estanque-1 (fecha + estanque sin tildes ni espacios). */
+        fun lotIdFor(tank: String, date: Date): String {
+            val day = SimpleDateFormat("yyyyMMdd", Locale.US).format(date)
+            val slug = Normalizer.normalize(tank.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+                .replace(Regex("\\p{M}"), "")
+                .replace(Regex("[^a-z0-9]+"), "-")
+                .trim('-')
+                .ifEmpty { "estanque" }
+            return "$day-$slug"
+        }
+    }
+}

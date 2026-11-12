@@ -12,7 +12,12 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,23 +27,36 @@ import androidx.compose.ui.unit.dp
 
 import com.example.myapplication.bluetooth.BluetoothConnectionState
 import com.example.myapplication.model.PhStatus
-import com.example.myapplication.model.Role
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.model.TemperatureStatus
 import com.example.myapplication.ui.components.*
 import com.example.myapplication.viewmodel.DemoScenario
 import com.example.myapplication.viewmodel.MilkQualityViewModel
+import com.example.myapplication.viewmodel.RecordsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MilkQualityScreen(
     viewModel: MilkQualityViewModel,
+    recordsViewModel: RecordsViewModel,
     session: UserSession,
     onLogout: () -> Unit,
     onOpenUserManagement: () -> Unit,
+    onOpenLots: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val role = session.role
+    val records by recordsViewModel.state.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showLotPicker by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(records.message) {
+        val message = records.message
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
+            recordsViewModel.messageShown()
+        }
+    }
     val uiState by viewModel.uiState.collectAsState()
     val currentReading = uiState.currentReading
 
@@ -78,6 +96,11 @@ fun MilkQualityScreen(
                     IconButton(onClick = { viewModel.setShowDeviceDialog(true) }) {
                         Icon(Icons.Default.Bluetooth, contentDescription = "Conectar Bluetooth")
                     }
+                    if (role.canEditLots) {
+                        IconButton(onClick = onOpenLots) {
+                            Icon(Icons.Default.Inventory2, contentDescription = "Lotes")
+                        }
+                    }
                     if (role.canManageUsers) {
                         IconButton(onClick = onOpenUserManagement) {
                             Icon(Icons.Default.ManageAccounts, contentDescription = "Gestión de usuarios")
@@ -92,6 +115,7 @@ fun MilkQualityScreen(
                 )
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { innerPadding ->
         LazyColumn(
@@ -336,33 +360,29 @@ fun MilkQualityScreen(
                 }
             }
 
-            // Item 7: History Header
+            // Item 7: Lote activo y boton para registrar la lectura actual
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (role.canViewAllHistory) {
-                            "Historial de Mediciones (${uiState.history.size})"
-                        } else {
-                            "Mis Mediciones (${uiState.history.size})"
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    // Las mediciones son inmutables (informe, seccion 6.2): solo el administrador limpia la vista local.
-                    if (uiState.history.isNotEmpty() && role == Role.ADMIN) {
-                        TextButton(onClick = { viewModel.clearHistory() }) {
-                            Text("Limpiar")
-                        }
-                    }
-                }
+                CurrentLotCard(
+                    currentLot = records.currentLot,
+                    saving = records.saving,
+                    onChangeLot = { showLotPicker = true },
+                    onRecord = { recordsViewModel.recordMeasurement(currentReading) }
+                )
             }
 
-            // Item 8: History List Items
-            if (uiState.history.isEmpty()) {
+            // Item 8: Historial guardado en Firestore (segun el rol)
+            item {
+                HistoryHeader(
+                    title = if (role.canViewAllHistory) "Historial de Mediciones" else "Mis Mediciones",
+                    count = records.history.size,
+                    canFilter = role.canViewAllHistory,
+                    lots = records.lots,
+                    filterLotId = records.historyLotFilter,
+                    onFilter = { recordsViewModel.setHistoryFilter(it) }
+                )
+            }
+
+            if (records.history.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
@@ -370,62 +390,24 @@ fun MilkQualityScreen(
                             .padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "Sin lecturas registradas aún.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (records.historyLoading) {
+                            CircularProgressIndicator()
+                        } else {
+                            Text(
+                                "Sin mediciones registradas aún.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             } else {
-                items(uiState.history.take(15)) { reading ->
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = reading.formattedTime,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "T: %.1f°C  |  CE: %.1fmS  |  Turb: %.0f%%".format(reading.temperature, reading.conductivity, reading.turbidity),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = when (reading.phStatus) {
-                                    PhStatus.NORMAL -> Color(0xFFE8F5E9)
-                                    PhStatus.ACIDIC -> Color(0xFFFFEBEE)
-                                    PhStatus.ALKALINE -> Color(0xFFFFFDE7)
-                                }
-                            ) {
-                                Text(
-                                    text = "pH %.2f".format(reading.ph),
-                                    fontWeight = FontWeight.Bold,
-                                    color = when (reading.phStatus) {
-                                        PhStatus.NORMAL -> Color(0xFF2E7D32)
-                                        PhStatus.ACIDIC -> Color(0xFFC62828)
-                                        PhStatus.ALKALINE -> Color(0xFFF57F17)
-                                    },
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-                    }
+                items(records.history, key = { it.id }) { measurement ->
+                    SavedMeasurementRow(
+                        measurement = measurement,
+                        lotName = records.lotName(measurement.lotId),
+                        showMilker = role.canViewAllHistory
+                    )
                 }
             }
 
@@ -443,6 +425,20 @@ fun MilkQualityScreen(
             onSelectDevice = { address -> viewModel.connectDevice(address) },
             onRefreshDevices = { viewModel.refreshDevices() },
             onDismiss = { viewModel.setShowDeviceDialog(false) }
+        )
+    }
+
+    if (showLotPicker) {
+        LotPickerDialog(
+            todayLots = records.todayLots,
+            currentLotId = records.currentLotId,
+            saving = records.saving,
+            onSelect = {
+                recordsViewModel.selectLot(it)
+                showLotPicker = false
+            },
+            onCreate = { tank -> recordsViewModel.openTodayLot(tank) { showLotPicker = false } },
+            onDismiss = { showLotPicker = false }
         )
     }
 

@@ -63,6 +63,43 @@ ni escribir lo que su rol no permite.
 
 El lechero es quien toma las muestras en la ordeña; en las mediciones su UID se guarda en el campo `uidLechero`.
 
+## 7. Datos iniciales para registrar mediciones
+
+**La caja de sensores** (las reglas exigen que cada medición apunte a un dispositivo existente):
+colección `dispositivos`, documento con ID **`caja-01`**:
+
+| Campo | Tipo | Valor |
+|---|---|---|
+| `nombre` | string | Caja de sensores 1 |
+| `ubicacion` | string | Sala de ordeña |
+| `estado` | string | `activo` |
+
+**Índices compuestos** (Firestore → Índices → Compuesto → Agregar índice; ámbito Colección).
+También están en `firebase/firestore.indexes.json`. ↑ = Ascendente, ↓ = Descendente.
+
+| Colección | Campos | Para qué |
+|---|---|---|
+| `mediciones` | `idLote` ↑, `fechaHora` ↓ | Historial por lote (encargado y administrador) |
+| `mediciones` | `uidLechero` ↑, `fechaHora` ↓ | Historial propio del lechero |
+| `mediciones` | `uidLechero` ↑, `idLote` ↑, `fechaHora` ↓ | Historial propio por lote |
+| `alertas` | `atendida` ↑, `fecha` ↓ | Alertas pendientes (Parte 3) |
+| `calibraciones` | `idDispositivo` ↑, `fecha` ↓ | Calibraciones de la caja |
+
+Si falta un índice, la app muestra "Falta un índice en Firestore para esta consulta".
+
+## 8. Cómo se usan los lotes y las mediciones
+
+1. En la pantalla principal, tarjeta **Lote activo → Elegir**: se elige un lote de hoy o se crea el de un
+   estanque (ID `AAAAMMDD-estanque`, un lote por estanque y día).
+2. **Registrar medición** guarda la lectura que se ve en pantalla en `mediciones`, con el lote, el lechero,
+   la fecha, los cuatro sensores y el semáforo (`resultado.estado`: verde, ambar o rojo).
+3. Sin conexión, la medición queda guardada en el teléfono y se sube sola al volver la red.
+4. El encargado y el administrador ven todo el historial y lo filtran por lote; el lechero ve solo lo suyo.
+5. El encargado y el administrador editan lotes (estanque y observación) desde el ícono **Lotes**.
+
+Campos que la app agrega además de la Tabla 20 del informe (redundancia controlada, para mostrar nombres
+sin lecturas extra): `nombreLechero` en mediciones; `nombreCreador` y `observacion` en lotes.
+
 ## Problemas comunes
 
 | Mensaje en la app | Causa y solución |

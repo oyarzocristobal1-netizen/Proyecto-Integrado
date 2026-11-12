@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,12 +20,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.example.myapplication.ui.LoginScreen
+import com.example.myapplication.ui.LotsScreen
 import com.example.myapplication.ui.MilkQualityScreen
 import com.example.myapplication.ui.UserManagementScreen
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.viewmodel.AuthUiState
 import com.example.myapplication.viewmodel.AuthViewModel
 import com.example.myapplication.viewmodel.MilkQualityViewModel
+import com.example.myapplication.viewmodel.RecordsViewModel
 import com.example.myapplication.viewmodel.UserManagementViewModel
 
 class MainActivity : ComponentActivity() {
@@ -32,6 +35,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MilkQualityViewModel by viewModels()
     private val authViewModel: AuthViewModel by viewModels()
     private val userManagementViewModel: UserManagementViewModel by viewModels()
+    private val recordsViewModel: RecordsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,21 +62,36 @@ class MainActivity : ComponentActivity() {
                         )
 
                         is AuthUiState.LoggedIn -> {
-                            // Navegacion simple: pantalla principal o gestion de usuarios (solo administrador)
-                            var showUsers by rememberSaveable(state.session.uid) { mutableStateOf(false) }
-                            if (showUsers && state.session.role.canManageUsers) {
-                                BackHandler { showUsers = false }
-                                UserManagementScreen(
+                            val session = state.session
+                            LaunchedEffect(session.uid, session.role) { recordsViewModel.start(session) }
+                            val logout = {
+                                recordsViewModel.stop()
+                                authViewModel.logout()
+                            }
+                            // Navegacion simple entre la pantalla principal, lotes y gestion de usuarios
+                            var screen by rememberSaveable(session.uid) { mutableStateOf(SCREEN_MAIN) }
+                            if (screen != SCREEN_MAIN) {
+                                BackHandler { screen = SCREEN_MAIN }
+                            }
+                            when {
+                                screen == SCREEN_USERS && session.role.canManageUsers -> UserManagementScreen(
                                     viewModel = userManagementViewModel,
-                                    session = state.session,
-                                    onBack = { showUsers = false }
+                                    session = session,
+                                    onBack = { screen = SCREEN_MAIN }
                                 )
-                            } else {
-                                MilkQualityScreen(
+
+                                screen == SCREEN_LOTS && session.role.canEditLots -> LotsScreen(
+                                    viewModel = recordsViewModel,
+                                    onBack = { screen = SCREEN_MAIN }
+                                )
+
+                                else -> MilkQualityScreen(
                                     viewModel = viewModel,
-                                    session = state.session,
-                                    onLogout = authViewModel::logout,
-                                    onOpenUserManagement = { showUsers = true }
+                                    recordsViewModel = recordsViewModel,
+                                    session = session,
+                                    onLogout = logout,
+                                    onOpenUserManagement = { screen = SCREEN_USERS },
+                                    onOpenLots = { screen = SCREEN_LOTS }
                                 )
                             }
                         }
@@ -82,3 +101,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+private const val SCREEN_MAIN = "principal"
+private const val SCREEN_LOTS = "lotes"
+private const val SCREEN_USERS = "usuarios"
