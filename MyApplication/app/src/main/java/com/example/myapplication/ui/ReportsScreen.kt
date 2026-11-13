@@ -3,19 +3,27 @@ package com.example.myapplication.ui
 import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.Lot
 import com.example.myapplication.model.UserSession
+import com.example.myapplication.ui.components.InfoBanner
+import com.example.myapplication.ui.components.PrimaryPillButton
+import com.example.myapplication.ui.components.ScreenTitle
+import com.example.myapplication.ui.components.SecondaryPillButton
+import com.example.myapplication.ui.components.SectionCard
+import com.example.myapplication.ui.components.WarningNote
 import com.example.myapplication.viewmodel.ExportFormat
 import com.example.myapplication.viewmodel.ReportPeriod
 import com.example.myapplication.viewmodel.ReportsViewModel
@@ -69,7 +77,7 @@ fun ReportsScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("Reportes", fontWeight = FontWeight.Bold) },
+                title = { ScreenTitle("Reportes") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -84,86 +92,97 @@ fun ReportsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                "Genera un reporte de las mediciones guardadas y compártelo por correo, WhatsApp o Drive.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            InfoBanner(
+                "Genera un reporte de las mediciones guardadas y compártelo por correo, WhatsApp o Drive. " +
+                    "Incluye un resumen (cantidad, semáforo y promedios) y la tabla de mediciones."
             )
 
-            Text("Periodo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReportPeriod.entries.forEach { p ->
-                    FilterChip(
-                        selected = state.period == p,
-                        onClick = { viewModel.setPeriod(p) },
-                        label = { Text(p.label) }
-                    )
-                }
-            }
-
-            Text("Lote", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Box {
-                OutlinedButton(onClick = { lotMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        lots.firstOrNull { it.id == state.lotId }?.let { "${it.tank} · ${day.format(it.date)}" }
-                            ?: "Todos los lotes",
-                        modifier = Modifier.weight(1f)
-                    )
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                }
-                DropdownMenu(expanded = lotMenu, onDismissRequest = { lotMenu = false }) {
-                    DropdownMenuItem(text = { Text("Todos los lotes") }, onClick = {
-                        lotMenu = false
-                        viewModel.setLot(null)
-                    })
-                    lots.forEach { lot ->
-                        DropdownMenuItem(text = { Text("${lot.tank} · ${day.format(lot.date)}") }, onClick = {
-                            lotMenu = false
-                            viewModel.setLot(lot.id)
-                        })
+            SectionCard("📅", "Periodo", "Desde el inicio del día elegido hasta ahora.") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReportPeriod.entries.forEach { p ->
+                        FilterChip(
+                            selected = state.period == p,
+                            onClick = { viewModel.setPeriod(p) },
+                            label = { Text(p.label) }
+                        )
                     }
                 }
             }
 
-            Text("Formato", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ExportFormat.entries.forEach { f ->
-                    FilterChip(
-                        selected = f in state.formats,
-                        onClick = { viewModel.toggleFormat(f) },
-                        label = { Text(f.label) }
-                    )
+            SectionCard("🥛", "Lote", "Deja \"Todos los lotes\" para incluir todas las mediciones del periodo.") {
+                Box {
+                    OutlinedButton(
+                        onClick = { lotMenu = true },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                    ) {
+                        Text(
+                            lots.firstOrNull { it.id == state.lotId }?.let { "${it.tank} · ${day.format(it.date)}" }
+                                ?: "Todos los lotes",
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                    }
+                    DropdownMenu(expanded = lotMenu, onDismissRequest = { lotMenu = false }) {
+                        DropdownMenuItem(text = { Text("Todos los lotes") }, onClick = {
+                            lotMenu = false
+                            viewModel.setLot(null)
+                        })
+                        lots.forEach { lot ->
+                            DropdownMenuItem(text = { Text("${lot.tank} · ${day.format(lot.date)}") }, onClick = {
+                                lotMenu = false
+                                viewModel.setLot(lot.id)
+                            })
+                        }
+                    }
                 }
-                AssistChip(onClick = { viewModel.selectAllFormats() }, label = { Text("Todos") })
             }
-            Text(
-                "PDF para imprimir o enviar · Excel y CSV para analizar · Word para editar o agregar al informe.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+
+            SectionCard(
+                "📄",
+                "Formato",
+                "PDF para imprimir o enviar · Excel y CSV para analizar · Word para editar o agregar al informe."
+            ) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ExportFormat.entries.forEach { f ->
+                        FilterChip(
+                            selected = f in state.formats,
+                            onClick = { viewModel.toggleFormat(f) },
+                            label = { Text(f.label) }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            PrimaryPillButton(
+                text = if (state.generating) "Generando…" else "Generar y compartir",
+                leadingIcon = Icons.Default.Share,
+                trailingIcon = Icons.AutoMirrored.Filled.Send,
+                enabled = state.formats.isNotEmpty() && session.role.canExportReports,
+                loading = state.generating,
+                onClick = { viewModel.generate(session, lots) }
             )
 
-            Button(
-                onClick = { viewModel.generate(session, lots) },
-                enabled = !state.generating && state.formats.isNotEmpty(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            ) {
-                if (state.generating) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Generar y compartir")
-                }
-            }
+            SecondaryPillButton(
+                text = "Elegir todos los formatos",
+                trailingIcon = Icons.Default.DoneAll,
+                enabled = !state.generating,
+                onClick = { viewModel.selectAllFormats() }
+            )
+
+            WarningNote(
+                "El reporte necesita conexión a internet para leer las mediciones. " +
+                    "Con varios formatos se comparten todos los archivos juntos."
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
