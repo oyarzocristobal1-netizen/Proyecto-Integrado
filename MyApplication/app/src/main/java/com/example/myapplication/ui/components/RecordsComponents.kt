@@ -1,20 +1,29 @@
 package com.example.myapplication.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,7 +32,7 @@ import com.example.myapplication.data.SavedMeasurement
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-private val dayTime = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault())
+private val dayTime = SimpleDateFormat("dd/MM · HH:mm", Locale.getDefault())
 private val dayOnly = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
 
 /** Lote activo donde se registran las mediciones, con el boton para registrar la lectura actual. */
@@ -35,46 +44,57 @@ fun CurrentLotCard(
     onRecord: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.Inventory2, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(
+                    Icons.Default.Inventory2,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(30.dp)
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Lote activo",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
                         text = currentLot?.let { "${it.tank} · ${dayOnly.format(it.date)}" } ?: "Sin lote elegido",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
-                TextButton(onClick = onChangeLot, enabled = !saving) {
-                    Text(if (currentLot == null) "Elegir" else "Cambiar")
+                Button(
+                    onClick = onChangeLot,
+                    enabled = !saving,
+                    shape = RoundedCornerShape(50),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                ) {
+                    Text(if (currentLot == null) "Elegir" else "Cambiar", fontWeight = FontWeight.SemiBold)
                 }
             }
             Button(
                 onClick = onRecord,
                 enabled = currentLot != null && !saving,
+                shape = RoundedCornerShape(50),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .height(52.dp)
             ) {
-                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Registrar medición")
+                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text("Registrar medición", fontWeight = FontWeight.SemiBold)
             }
             if (currentLot == null) {
                 Text(
                     text = "Elige o crea el lote de hoy para poder registrar mediciones.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         }
@@ -171,20 +191,26 @@ fun HistoryHeader(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "$title ($count)",
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
         if (canFilter) {
             Box {
                 TextButton(onClick = { expanded = true }) {
-                    Text(lots.firstOrNull { it.id == filterLotId }?.tank ?: "Todos los lotes", maxLines = 1)
+                    Text(
+                        lots.firstOrNull { it.id == filterLotId }?.tank ?: "Ver todos los lotes",
+                        maxLines = 1,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
                     Icon(Icons.Default.ArrowDropDown, contentDescription = "Filtrar por lote")
                 }
                 DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -210,7 +236,25 @@ fun HistoryHeader(
     }
 }
 
+/** Valor de un sensor con su icono de color (historial). */
+@Composable
+private fun SensorValueChip(icon: ImageVector, iconColor: Color, iconBackground: Color, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(iconBackground),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(16.dp))
+        }
+        Text(text, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
 /** Una medicion guardada en el historial. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SavedMeasurementRow(
     measurement: SavedMeasurement,
@@ -218,54 +262,73 @@ fun SavedMeasurementRow(
     showMilker: Boolean
 ) {
     val (container, content, label) = when (measurement.status) {
-        "verde" -> Triple(Color(0xFFE8F5E9), Color(0xFF1B5E20), "NORMAL")
-        "ambar" -> Triple(Color(0xFFFFF3D6), Color(0xFF5C3B00), "PRECAUCIÓN")
-        "rojo" -> Triple(Color(0xFFFDE7E7), Color(0xFF7A1212), "FUERA DE RANGO")
+        "verde" -> Triple(Color(0xFFE3F1E4), Color(0xFF1B5E20), "NORMAL")
+        "ambar" -> Triple(Color(0xFFFFF1D0), Color(0xFF6B4500), "PRECAUCIÓN")
+        "rojo" -> Triple(Color(0xFFFDE4E4), Color(0xFFB3261E), "FUERA DE RANGO")
         else -> Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "—")
     }
     Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "${dayTime.format(measurement.dateTime)} · $lotName",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
                 )
-                Text(
-                    text = "T %.1f°C · pH %.2f · CE %.2f mS/cm · Turb %.0f%%".format(
-                        measurement.temperature, measurement.ph, measurement.conductivity, measurement.turbidity
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (showMilker && measurement.milkerName.isNotBlank()) {
+                Surface(shape = RoundedCornerShape(50), color = container) {
                     Text(
-                        text = "Lechero: ${measurement.milkerName}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = label,
+                        color = content,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
             }
-            Surface(shape = RoundedCornerShape(8.dp), color = container) {
-                Text(
-                    text = label,
-                    color = content,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                SensorValueChip(
+                    Icons.Default.Thermostat, Color(0xFFC62828), Color(0xFFFDE4E4),
+                    "%.1f°C".format(measurement.temperature)
                 )
+                SensorValueChip(
+                    Icons.Default.Science, Color(0xFF2E7D32), Color(0xFFE3F1E4),
+                    "pH %.2f".format(measurement.ph)
+                )
+                SensorValueChip(
+                    Icons.Default.Bolt, Color(0xFFB26A00), Color(0xFFFFF1D0),
+                    "%.2f mS/cm".format(measurement.conductivity)
+                )
+                SensorValueChip(
+                    Icons.Default.WaterDrop, Color(0xFF1565C0), Color(0xFFE3EEFB),
+                    "Turb %.0f%%".format(measurement.turbidity)
+                )
+            }
+            if (showMilker && measurement.milkerName.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = "Lechero: ${measurement.milkerName}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

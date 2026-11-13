@@ -1,6 +1,8 @@
 package com.example.myapplication.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -72,25 +74,39 @@ fun MilkQualityScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "Calidad de Leche",
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                            Text(
+                                text = "Calidad de Leche",
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = "Fundo San Carlos",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                        // Tocar la etiqueta cambia entre simulacion (DEMO) y la caja por Bluetooth
                         Surface(
                             shape = CircleShape,
-                            color = if (uiState.isDemoMode) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer
+                            color = if (uiState.isDemoMode) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer,
+                            onClick = { viewModel.toggleDemoMode(!uiState.isDemoMode) }
                         ) {
                             Text(
-                                text = if (uiState.isDemoMode) "DEMO" else "BT SERIE",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = if (uiState.isDemoMode) "DEMO" else "BT",
+                                style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
                                 color = if (uiState.isDemoMode) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.setShowDeviceDialog(true) }) {
+                        Icon(Icons.Default.Bluetooth, contentDescription = "Conectar Bluetooth")
+                    }
                     // Alertas: todos los roles las reciben; el numero son las pendientes
                     IconButton(onClick = onOpenAlerts) {
                         BadgedBox(
@@ -103,15 +119,22 @@ fun MilkQualityScreen(
                             Icon(Icons.Default.Notifications, contentDescription = "Alertas")
                         }
                     }
-                    IconButton(onClick = { viewModel.setShowDeviceDialog(true) }) {
-                        Icon(Icons.Default.Bluetooth, contentDescription = "Conectar Bluetooth")
-                    }
                     // Menu con el resto de las opciones, segun el rol (Tabla 31)
                     Box {
                         IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Más opciones")
+                            Icon(Icons.Default.Menu, contentDescription = "Menú")
                         }
                         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            // Quien esta conectado y con que rol
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Text(session.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Text(
+                                    role.label,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            HorizontalDivider()
                             if (role.canEditLots) {
                                 MenuOption("Lotes", Icons.Default.Inventory2) { showMenu = false; onOpenLots() }
                             }
@@ -153,13 +176,8 @@ fun MilkQualityScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Item 0: Usuario con sesion iniciada y su rol
-            item {
-                UserRoleCard(session = session)
-            }
-
-            // Item 1: Bluetooth Connection Status Card
-            item {
+            // Item 1: Estado de la conexion con la caja (solo fuera del modo DEMO)
+            if (!uiState.isDemoMode) item {
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
@@ -239,40 +257,34 @@ fun MilkQualityScreen(
                 }
             }
 
-            // Item 2: Demo Scenario Selector (when in Demo Mode)
+            // Item 2: Muestras de prueba (modo DEMO), deslizables hacia el lado
             if (uiState.isDemoMode) {
                 item {
-                    Column {
-                        Text(
-                            text = "Seleccionar Muestra de Prueba:",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            DemoScenario.entries.forEach { scenario ->
-                                val isSelected = uiState.selectedScenario == scenario
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { viewModel.setDemoScenario(scenario) },
-                                    label = {
-                                        Text(
-                                            text = when (scenario) {
-                                                DemoScenario.NORMAL -> "Normal"
-                                                DemoScenario.ACIDIC_BACTERIAL -> "Ácida"
-                                                DemoScenario.ALKALINE_MASTITIS -> "Mastitis"
-                                                DemoScenario.DILUTED_WATER -> "Diluida"
-                                            },
-                                            style = MaterialTheme.typography.labelMedium
-                                        )
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        DemoScenario.entries.forEach { scenario ->
+                            FilterChip(
+                                selected = uiState.selectedScenario == scenario,
+                                onClick = { viewModel.setDemoScenario(scenario) },
+                                shape = RoundedCornerShape(50),
+                                label = {
+                                    Text(
+                                        text = when (scenario) {
+                                            DemoScenario.NORMAL -> "Normal"
+                                            DemoScenario.ACIDIC_BACTERIAL -> "Ácida"
+                                            DemoScenario.ALKALINE_MASTITIS -> "Mastitis"
+                                            DemoScenario.DILUTED_WATER -> "Diluida"
+                                        },
+                                        style = MaterialTheme.typography.labelLarge,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
+                                    )
+                                }
+                            )
                         }
                     }
                 }
@@ -313,8 +325,9 @@ fun MilkQualityScreen(
                             TemperatureStatus.HIGH -> SensorStatus.ALERT
                         },
                         icon = Icons.Default.Thermostat,
-                        referenceRange = "≤ %.1f°C (frío)".format(records.ranges.tempMax),
+                        referenceRange = "≤ %.1f°C".format(records.ranges.tempMax),
                         progress = (currentReading.temperature / 30.0f).coerceIn(0f, 1f),
+                        progressBrush = TemperatureScale,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -363,7 +376,7 @@ fun MilkQualityScreen(
                         statusText = if (condOk) "NORMAL" else "REVISAR",
                         status = if (condOk) SensorStatus.GOOD else SensorStatus.WARNING,
                         icon = Icons.Default.ElectricBolt,
-                        referenceRange = "%.2f - %.2f mS/cm".format(records.ranges.condMin, records.ranges.condMax),
+                        referenceRange = "%.2f - %.2f".format(records.ranges.condMin, records.ranges.condMax),
                         progress = (currentReading.conductivity / 8.0f).coerceIn(0f, 1f),
                         modifier = Modifier
                             .weight(1f)
@@ -379,7 +392,7 @@ fun MilkQualityScreen(
                         statusText = if (turbOk) "OPACA" else "DILUIDA",
                         status = if (turbOk) SensorStatus.GOOD else SensorStatus.ALERT,
                         icon = Icons.Default.WaterDrop,
-                        referenceRange = "≥ %.1f %%".format(records.ranges.turbMin),
+                        referenceRange = "≥ %.1f%%".format(records.ranges.turbMin),
                         progress = currentReading.turbidity / 100.0f,
                         modifier = Modifier
                             .weight(1f)
@@ -474,66 +487,6 @@ fun MilkQualityScreen(
         ArduinoCodeDialog(
             onDismiss = { viewModel.setShowCodeGuideDialog(false) }
         )
-    }
-}
-
-/** Tarjeta con el nombre del usuario, su rol y lo que ese rol puede hacer (Tabla 31). */
-@Composable
-private fun UserRoleCard(session: UserSession) {
-    val role = session.role
-    val permissions = buildList {
-        add("medir")
-        add(if (role.canViewAllHistory) "ver todo el historial" else "ver sus mediciones")
-        if (role.canEditLots) add("editar lotes")
-        if (role.canAttendAlerts) add("atender alertas")
-        if (role.canExportReports) add("exportar reportes")
-        if (role.canCalibrateDevice) add("calibrar")
-        if (role.canManageUsers) add("gestionar usuarios")
-        if (role.canEditQualityRanges) add("cambiar rangos")
-    }
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AccountCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = session.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Text(
-                        text = role.label.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        maxLines = 1,
-                        softWrap = false,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Puede: " + permissions.joinToString(", ") + ".",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 
