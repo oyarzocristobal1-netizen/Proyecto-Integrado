@@ -34,11 +34,10 @@ fun DeviceSelectionDialog(
     val context = LocalContext.current
     var hasPermissions by remember {
         mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+ pide BLUETOOTH_CONNECT al usuario; en versiones anteriores el permiso
+            // BLUETOOTH se concede al instalar. No se pide ubicacion: solo se usan cajas ya emparejadas.
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
                 ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-            } else {
-                ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED
-            }
         )
     }
 
@@ -75,26 +74,16 @@ fun DeviceSelectionDialog(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(
-                                "Se requieren permisos de Bluetooth para buscar y conectarse al módulo del sensor.",
+                                "Se necesita el permiso de Bluetooth para conectarse con la caja de sensores emparejada.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Button(
                                 onClick = {
-                                    val req = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                        arrayOf(
-                                            Manifest.permission.BLUETOOTH_CONNECT,
-                                            Manifest.permission.BLUETOOTH_SCAN
-                                        )
-                                    } else {
-                                        arrayOf(
-                                            Manifest.permission.BLUETOOTH,
-                                            Manifest.permission.BLUETOOTH_ADMIN,
-                                            Manifest.permission.ACCESS_FINE_LOCATION
-                                        )
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        permissionLauncher.launch(arrayOf(Manifest.permission.BLUETOOTH_CONNECT))
                                     }
-                                    permissionLauncher.launch(req)
                                 },
                                 modifier = Modifier.align(Alignment.End)
                             ) {

@@ -20,8 +20,8 @@ data class ManagedUser(
  * escribir en "usuarios" al administrador.
  */
 class UserAdminRepository(
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+    private val auth: FirebaseAuth,
+    private val db: FirebaseFirestore
 ) {
     private val users = db.collection(USERS)
 
