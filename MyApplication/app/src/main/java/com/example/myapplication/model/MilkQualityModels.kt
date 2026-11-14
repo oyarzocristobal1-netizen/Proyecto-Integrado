@@ -5,15 +5,32 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Model representing a sensor reading for Milk Quality evaluation.
+ * Origen de una lectura. Por defecto es SIMULADA: una lectura solo se marca como del sensor
+ * cuando la entrega la caja por Bluetooth, para no presentar nunca datos de prueba como reales.
+ */
+enum class ReadingSource(val id: String, val label: String) {
+    SIMULATED("simulado", "Simulada"),
+    DEVICE("sensor", "Sensor");
+
+    companion object {
+        /** Mediciones antiguas sin campo "origen" se tratan como simuladas (se tomaron en modo DEMO). */
+        fun fromId(id: String?): ReadingSource = entries.firstOrNull { it.id == id } ?: SIMULATED
+    }
+}
+
+/**
+ * Lectura de los cuatro sensores en un instante.
  */
 data class MilkQualityReading(
     val temperature: Float = 0.0f,    // °C
-    val ph: Float = 0.0f,             // Standard pH units
+    val ph: Float = 0.0f,             // unidades de pH
     val conductivity: Float = 0.0f,   // mS/cm
     val turbidity: Float = 0.0f,      // %
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val source: ReadingSource = ReadingSource.SIMULATED
 ) {
+    val isSimulated: Boolean get() = source == ReadingSource.SIMULATED
+
     val formattedTime: String
         get() = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
 
