@@ -221,7 +221,7 @@ fun DashboardScreen(
                 }
 
                 val days = summary?.days.orEmpty()
-                item {
+                if (days.isNotEmpty()) item {
                     TrendChart(
                         title = "pH promedio diario",
                         unit = "",
@@ -232,7 +232,7 @@ fun DashboardScreen(
                         decimals = 2
                     )
                 }
-                item {
+                if (days.isNotEmpty()) item {
                     TrendChart(
                         title = "Temperatura promedio diaria",
                         unit = "°C",
