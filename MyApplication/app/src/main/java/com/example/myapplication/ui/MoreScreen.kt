@@ -140,7 +140,12 @@ fun MoreScreen(
                             MenuRow("Gestión de usuarios", "Crear cuentas, cambiar rol o desactivar", Icons.Outlined.ManageAccounts, onOpenUsers)
                         }
                         if (role.canCalibrateDevice) {
-                            MenuRow("Código de referencia de la caja", "Ejemplo de firmware y formato de datos", Icons.Outlined.Code) { showCode = true }
+                            MenuRow(
+                                title = "Código de referencia de la caja",
+                                subtitle = "Ejemplo de firmware y formato de datos",
+                                icon = Icons.Outlined.Code,
+                                onClick = { showCode = true }
+                            )
                         }
                         if (!role.canEditLots && !role.canExportReports) {
                             Text(
