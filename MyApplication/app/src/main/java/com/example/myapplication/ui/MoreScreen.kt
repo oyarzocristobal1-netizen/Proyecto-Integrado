@@ -167,14 +167,6 @@ fun MoreScreen(
                     }
                 }
             }
-
-            item {
-                Text(
-                    "Proyecto Integrado TIHI43 · INACAP · Fundo San Carlos",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
 

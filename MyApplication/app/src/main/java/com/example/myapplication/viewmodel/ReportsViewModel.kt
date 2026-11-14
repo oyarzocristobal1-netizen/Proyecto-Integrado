@@ -142,18 +142,17 @@ class ReportsViewModel(
                 )
                 val uris = withContext(Dispatchers.IO) { writeFiles(data, st.formats) }
                 val mime = if (st.formats.size == 1) st.formats.first().mimeType else "*/*"
-                val simulatedRows = data.rows.count { it.simulated }
-                val notes = buildString {
-                    append("Reporte listo: ${data.rows.size} mediciones")
-                    if (simulatedRows > 0) append(" ($simulatedRows simuladas, marcadas en el archivo)")
-                    append(".")
-                    if (all.size >= REPORT_LIMIT) append(" Se alcanzó el máximo de $REPORT_LIMIT: acota el periodo.")
+                // Al terminar se abre directamente "Compartir"; solo se avisa si el reporte quedo recortado.
+                val limitNote = if (all.size >= REPORT_LIMIT) {
+                    "Se incluyeron las $REPORT_LIMIT mediciones más recientes (máximo por reporte): acota el periodo."
+                } else {
+                    null
                 }
                 _state.update {
                     it.copy(
                         generating = false,
                         ready = GeneratedReport(uris, mime, data.rows.size),
-                        message = notes
+                        message = limitNote
                     )
                 }
             } catch (e: Exception) {
