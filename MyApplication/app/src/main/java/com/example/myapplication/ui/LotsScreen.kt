@@ -16,6 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.Lot
+import com.example.myapplication.model.MeasurementValidator
+import com.example.myapplication.ui.components.ScreenTitle
+import com.example.myapplication.ui.components.StatusPill
+import com.example.myapplication.ui.theme.AppTheme
 import com.example.myapplication.viewmodel.RecordsViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -29,31 +33,21 @@ fun LotsScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
     var editing by remember { mutableStateOf<Lot?>(null) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
-
-    LaunchedEffect(state.message) {
-        val message = state.message
-        if (message != null) {
-            snackbarHostState.showSnackbar(message)
-            viewModel.messageShown()
-        }
-    }
 
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("Lotes", fontWeight = FontWeight.Bold) },
+                title = { ScreenTitle("Lotes", "${state.lots.size} recientes") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 }
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -93,7 +87,12 @@ fun LotsScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(lot.tank, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(lot.tank, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                if (lot.id == state.currentLotId) {
+                                    StatusPill("ACTIVO", AppTheme.status.good)
+                                }
+                            }
                             Text(
                                 "${dateFormat.format(lot.date)} · creado por ${lot.createdByName.ifBlank { "—" }}",
                                 style = MaterialTheme.typography.bodySmall,
@@ -113,6 +112,7 @@ fun LotsScreen(
     editing?.let { lot ->
         var tank by rememberSaveable(lot.id) { mutableStateOf(lot.tank) }
         var note by rememberSaveable(lot.id) { mutableStateOf(lot.note) }
+        val tankError = MeasurementValidator.validateTankName(tank)
         AlertDialog(
             onDismissRequest = { if (!state.saving) editing = null },
             title = { Text("Editar lote") },
@@ -125,26 +125,38 @@ fun LotsScreen(
                     )
                     OutlinedTextField(
                         value = tank,
-                        onValueChange = { tank = it },
+                        onValueChange = { if (it.length <= 40) tank = it },
                         label = { Text("Estanque") },
                         singleLine = true,
                         enabled = !state.saving,
+                        isError = tankError != null,
+                        supportingText = if (tankError != null) {
+                            { Text(tankError) }
+                        } else {
+                            null
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = note,
-                        onValueChange = { note = it },
+                        onValueChange = { if (it.length <= 200) note = it },
                         label = { Text("Observación") },
                         placeholder = { Text("Ej.: retirado por el camión a las 18:00") },
                         enabled = !state.saving,
+                        supportingText = { Text("${note.length}/200") },
                         modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "El ID y la fecha del lote no cambian: las mediciones ya registradas siguen asociadas a él.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.updateLot(lot, tank, note) { editing = null } },
-                    enabled = !state.saving
+                    enabled = !state.saving && tankError == null
                 ) { Text(if (state.saving) "Guardando…" else "Guardar") }
             },
             dismissButton = {

@@ -34,7 +34,6 @@ fun RangesScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
     val current = state.ranges
     val reference = remember { QualityRanges() }
 
@@ -44,14 +43,6 @@ fun RangesScreen(
     var condMin by rememberSaveable(current) { mutableStateOf(current.condMin.format()) }
     var condMax by rememberSaveable(current) { mutableStateOf(current.condMax.format()) }
     var turbMin by rememberSaveable(current) { mutableStateOf(current.turbMin.format()) }
-
-    LaunchedEffect(state.message) {
-        val message = state.message
-        if (message != null) {
-            snackbarHostState.showSnackbar(message)
-            viewModel.messageShown()
-        }
-    }
 
     fun save() {
         val values = listOf(tempMax, phMin, phMax, condMin, condMax, turbMin).map { it.toNumberOrNull() }
@@ -74,8 +65,7 @@ fun RangesScreen(
                     }
                 }
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        }
     ) { innerPadding ->
         Column(
             modifier = Modifier

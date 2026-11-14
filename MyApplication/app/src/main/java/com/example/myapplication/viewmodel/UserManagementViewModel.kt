@@ -2,15 +2,16 @@ package com.example.myapplication.viewmodel
 
 import android.util.Patterns
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.myapplication.data.MIN_PASSWORD_LENGTH
 import com.example.myapplication.data.ManagedUser
 import com.example.myapplication.data.UserAdminRepository
+import com.example.myapplication.data.toUserMessage
 import com.example.myapplication.model.Role
-import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.auth.FirebaseAuthUserCollisionException
-import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,9 +29,7 @@ data class UserManagementUiState(
     val formError: String? = null
 )
 
-class UserManagementViewModel : ViewModel() {
-
-    private val repository = UserAdminRepository()
+class UserManagementViewModel(private val repository: UserAdminRepository) : ViewModel() {
 
     private val _state = MutableStateFlow(UserManagementUiState())
     val state: StateFlow<UserManagementUiState> = _state.asStateFlow()
@@ -52,6 +51,8 @@ class UserManagementViewModel : ViewModel() {
         val cleanEmail = email.trim()
         val error = when {
             cleanName.isEmpty() -> "Escribe el nombre del trabajador."
+            cleanName.length > MAX_NAME -> "El nombre no puede superar $MAX_NAME caracteres."
+            cleanEmail.length > MAX_EMAIL -> "El correo no puede superar $MAX_EMAIL caracteres."
             !Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches() -> "Ingresa un correo válido."
             password.length < MIN_PASSWORD_LENGTH -> "La contraseña inicial debe tener al menos $MIN_PASSWORD_LENGTH caracteres."
             else -> null
@@ -80,8 +81,13 @@ class UserManagementViewModel : ViewModel() {
 
     fun updateUser(user: ManagedUser, name: String, role: Role, active: Boolean, onDone: () -> Unit) {
         val cleanName = name.trim()
-        if (cleanName.isEmpty()) {
-            _state.update { it.copy(formError = "El nombre no puede quedar vacío.") }
+        val error = when {
+            cleanName.isEmpty() -> "El nombre no puede quedar vacío."
+            cleanName.length > MAX_NAME -> "El nombre no puede superar $MAX_NAME caracteres."
+            else -> null
+        }
+        if (error != null) {
+            _state.update { it.copy(formError = error) }
             return
         }
         _state.update { it.copy(saving = true, formError = null) }
@@ -113,17 +119,21 @@ class UserManagementViewModel : ViewModel() {
 
     fun messageShown() = _state.update { it.copy(message = null) }
 
-    private fun friendlyMessage(e: Exception): String = when (e) {
-        is FirebaseAuthUserCollisionException -> "Ya existe una cuenta con ese correo."
-        is FirebaseAuthWeakPasswordException -> "La contraseña es demasiado débil. Usa una más larga o variada."
-        is FirebaseAuthInvalidCredentialsException -> "El correo no tiene un formato válido."
-        is FirebaseNetworkException -> "Sin conexión a internet. Inténtalo de nuevo."
-        is FirebaseFirestoreException ->
-            if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-                "Permiso denegado: solo un administrador activo puede gestionar usuarios."
-            } else {
-                "No se pudo acceder a los usuarios. Inténtalo de nuevo."
-            }
-        else -> "No se pudo completar la operación. Inténtalo de nuevo."
+    private fun friendlyMessage(e: Exception): String = when {
+        // Al crear una cuenta, este error de Firebase significa correo mal escrito.
+        e is FirebaseAuthInvalidCredentialsException -> "El correo no tiene un formato válido."
+        e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+            "Permiso denegado: solo un administrador activo puede gestionar usuarios."
+        else -> e.toUserMessage()
+    }
+
+    companion object {
+        /** Los mismos limites que validan las reglas de Firestore. */
+        const val MAX_NAME = 80
+        const val MAX_EMAIL = 120
+
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer { UserManagementViewModel(appContainer().userAdminRepository) }
+        }
     }
 }

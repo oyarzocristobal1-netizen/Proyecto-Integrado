@@ -1,24 +1,50 @@
 package com.example.myapplication.ui
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myapplication.data.MilkAlert
 import com.example.myapplication.model.AlertSeverity
 import com.example.myapplication.model.UserSession
+import com.example.myapplication.ui.components.ConfirmDialog
+import com.example.myapplication.ui.components.EmptyState
+import com.example.myapplication.ui.components.ScreenTitle
+import com.example.myapplication.ui.components.SimulatedBadge
+import com.example.myapplication.ui.theme.AppTheme
 import com.example.myapplication.viewmodel.RecordsViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -29,42 +55,24 @@ import java.util.Locale
 fun AlertsScreen(
     viewModel: RecordsViewModel,
     session: UserSession,
-    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val state by viewModel.state.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
-
-    LaunchedEffect(state.message) {
-        val message = state.message
-        if (message != null) {
-            snackbarHostState.showSnackbar(message)
-            viewModel.messageShown()
-        }
-    }
+    var confirming by remember { mutableStateOf<MilkAlert?>(null) }
 
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text("Alertas", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                    }
-                }
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+            TopAppBar(title = { ScreenTitle("Alertas", "${state.pendingAlerts.size} pendiente(s)") })
+        }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(bottom = 24.dp)
+                .padding(innerPadding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -89,26 +97,49 @@ fun AlertsScreen(
                     )
                 }
             }
-            if (state.alerts.isEmpty()) {
-                item {
-                    Text(
-                        if (state.alertsOnlyPending) "No hay alertas pendientes." else "Todavía no hay alertas.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 24.dp)
+            when {
+                state.alertsLoading && state.alerts.isEmpty() -> item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) { CircularProgressIndicator() }
+                }
+
+                state.alerts.isEmpty() -> item {
+                    EmptyState(
+                        icon = Icons.Outlined.NotificationsNone,
+                        title = if (state.alertsOnlyPending) "Sin alertas pendientes" else "Sin alertas",
+                        message = "Las alertas se crean solas cuando una medición registrada queda fuera de los rangos de calidad."
+                    )
+                }
+
+                else -> items(state.alerts, key = { it.id }) { alert ->
+                    AlertRow(
+                        alert = alert,
+                        lotName = state.lotName(alert.lotId),
+                        dateText = dateFormat.format(alert.date),
+                        canAttend = session.role.canAttendAlerts,
+                        onAttend = { confirming = alert }
                     )
                 }
             }
-            items(state.alerts, key = { it.id }) { alert ->
-                AlertRow(
-                    alert = alert,
-                    lotName = state.lotName(alert.lotId),
-                    dateText = dateFormat.format(alert.date),
-                    canAttend = session.role.canAttendAlerts,
-                    onAttend = { viewModel.markAlertAttended(alert) }
-                )
-            }
         }
+    }
+
+    confirming?.let { alert ->
+        ConfirmDialog(
+            title = "¿Marcar como atendida?",
+            text = "\"${alert.message}\"\n\nConfirma que revisaste la leche y tomaste una acción. " +
+                "Una alerta atendida no se puede volver a marcar como pendiente.",
+            confirmLabel = "Marcar atendida",
+            onConfirm = {
+                viewModel.markAlertAttended(alert)
+                confirming = null
+            },
+            onDismiss = { confirming = null }
+        )
     }
 }
 
@@ -120,10 +151,11 @@ private fun AlertRow(
     canAttend: Boolean,
     onAttend: () -> Unit
 ) {
+    val status = AppTheme.status
     val (container, content) = when {
         alert.attended -> MaterialTheme.colorScheme.surfaceContainerLow to MaterialTheme.colorScheme.onSurfaceVariant
-        alert.severity == AlertSeverity.ALTA -> Color(0xFFFDE7E7) to Color(0xFF7A1212)
-        else -> Color(0xFFFFF3D6) to Color(0xFF5C3B00)
+        alert.severity == AlertSeverity.ALTA -> status.alert.container to status.alert.content
+        else -> status.warning.container to status.warning.content
     }
     val icon = when {
         alert.attended -> Icons.Default.CheckCircle
@@ -135,7 +167,7 @@ private fun AlertRow(
         colors = CardDefaults.cardColors(containerColor = container),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(icon, contentDescription = null, tint = content)
                 Text(
@@ -146,6 +178,7 @@ private fun AlertRow(
                     modifier = Modifier.weight(1f)
                 )
             }
+            if (alert.isSimulated) SimulatedBadge()
             Text(
                 text = buildString {
                     append(dateText)
@@ -165,7 +198,7 @@ private fun AlertRow(
                     modifier = Modifier.weight(1f)
                 )
                 if (!alert.attended && canAttend) {
-                    TextButton(onClick = onAttend) { Text("Marcar atendida") }
+                    FilledTonalButton(onClick = onAttend) { Text("Marcar atendida") }
                 }
             }
         }

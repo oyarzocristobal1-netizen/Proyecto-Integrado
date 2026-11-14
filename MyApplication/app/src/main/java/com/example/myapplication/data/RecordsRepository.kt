@@ -15,6 +15,7 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import java.util.Date
 import java.util.UUID
 
@@ -263,7 +264,10 @@ class RecordsRepository(
             }
     }
 
-    /** Mediciones desde una fecha, para el panel principal (lechero: solo las propias). */
+    /**
+     * Mediciones desde una fecha, para el panel principal (lechero: solo las propias).
+     * Incluye cambios de metadatos para mostrar cuantas faltan por sincronizar.
+     */
     fun listenSince(
         session: UserSession,
         since: Date,
@@ -277,7 +281,7 @@ class RecordsRepository(
         return query.whereGreaterThanOrEqualTo("fechaHora", Timestamp(since))
             .orderBy("fechaHora", Query.Direction.DESCENDING)
             .limit(DASHBOARD_LIMIT)
-            .addSnapshotListener { snapshot, error ->
+            .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
                 if (error != null) {
                     onError(error)
                 } else if (snapshot != null) {
@@ -329,7 +333,8 @@ class RecordsRepository(
             .whereLessThanOrEqualTo("fechaHora", Timestamp(to))
             .orderBy("fechaHora", Query.Direction.DESCENDING)
             .limit(REPORT_LIMIT)
-            .get().await()
+            // Solo del servidor: un reporte con la copia local podria quedar incompleto.
+            .get(Source.SERVER).await()
             .documents.mapNotNull { it.toMeasurement() }
     }
 

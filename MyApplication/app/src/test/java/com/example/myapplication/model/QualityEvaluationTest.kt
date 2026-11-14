@@ -90,6 +90,8 @@ class QualityEvaluationTest {
         assertTrue(QualityRanges(condMin = -1f).validate()!!.contains("negativa"))
         assertTrue(QualityRanges(condMin = 6f, condMax = 5f).validate()!!.contains("conductividad mínima"))
         assertTrue(QualityRanges(turbMin = 120f).validate()!!.contains("turbidez"))
+        // Los mismos limites que exigen las reglas de Firestore
+        assertTrue(QualityRanges(condMax = 25f).validate()!!.contains("20 mS/cm"))
         assertTrue(QualityRanges(tempMax = 25f).validate()!!.contains("temperatura"))
     }
 

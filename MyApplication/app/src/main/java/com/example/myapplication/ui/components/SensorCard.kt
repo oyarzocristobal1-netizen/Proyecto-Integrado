@@ -19,10 +19,14 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myapplication.ui.theme.AppTheme
+import com.example.myapplication.ui.theme.StatusTone
 
 enum class SensorStatus {
     GOOD,
@@ -35,11 +39,12 @@ val TemperatureScale: Brush = Brush.horizontalGradient(
     listOf(Color(0xFF1E88E5), Color(0xFF43A047), Color(0xFFFDD835), Color(0xFFE53935))
 )
 
-/** Colores del estado: (texto, fondo de la etiqueta). */
-fun sensorStatusColors(status: SensorStatus): Pair<Color, Color> = when (status) {
-    SensorStatus.GOOD -> Color(0xFF2E7D32) to Color(0xFFE3F1E4)
-    SensorStatus.WARNING -> Color(0xFF8A5A00) to Color(0xFFFFF1D0)
-    SensorStatus.ALERT -> Color(0xFFC62828) to Color(0xFFFDE4E4)
+/** Colores del estado (se adaptan al modo claro u oscuro). */
+@Composable
+fun sensorStatusTone(status: SensorStatus): StatusTone = when (status) {
+    SensorStatus.GOOD -> AppTheme.status.good
+    SensorStatus.WARNING -> AppTheme.status.warning
+    SensorStatus.ALERT -> AppTheme.status.alert
 }
 
 @Composable
@@ -56,12 +61,16 @@ fun SensorCard(
     /** Si se indica, la barra usa esta escala de color (por ejemplo, frio -> calor). */
     progressBrush: Brush? = null
 ) {
-    val (baseColor, baseContainer) = sensorStatusColors(status)
-    val statusColor by animateColorAsState(targetValue = baseColor, label = "statusColor")
-    val statusContainerColor by animateColorAsState(targetValue = baseContainer, label = "statusContainer")
+    val tone = sensorStatusTone(status)
+    val statusColor by animateColorAsState(targetValue = tone.content, label = "statusColor")
+    val statusContainerColor by animateColorAsState(targetValue = tone.container, label = "statusContainer")
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$title: $valueString $unit, $statusText. Rango de referencia $referenceRange."
+            },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -155,6 +164,8 @@ fun SensorCard(
 @Composable
 private fun LevelBar(progress: Float, color: Color, brush: Brush?, trackColor: Color) {
     val animated by animateFloatAsState(targetValue = progress, label = "level")
+    val thumbRing = MaterialTheme.colorScheme.surfaceContainerLowest
+    val thumbCenter = MaterialTheme.colorScheme.onSurface
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -174,9 +185,9 @@ private fun LevelBar(progress: Float, color: Color, brush: Brush?, trackColor: C
             drawRoundRect(color = trackColor, topLeft = Offset(0f, top), size = Size(size.width, barHeight), cornerRadius = radius)
             drawRoundRect(color = color, topLeft = Offset(0f, top), size = Size(x, barHeight), cornerRadius = radius)
         }
-        drawCircle(color = Color.White, radius = thumbRadius, center = Offset(x, size.height / 2f))
+        drawCircle(color = thumbRing, radius = thumbRadius, center = Offset(x, size.height / 2f))
         drawCircle(
-            color = if (brush != null) Color(0xFF37474F) else color,
+            color = if (brush != null) thumbCenter else color,
             radius = thumbRadius - 2.dp.toPx(),
             center = Offset(x, size.height / 2f)
         )

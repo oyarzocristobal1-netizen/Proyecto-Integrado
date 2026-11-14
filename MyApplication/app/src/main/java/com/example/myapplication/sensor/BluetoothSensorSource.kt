@@ -158,6 +158,11 @@ class BluetoothSensorSource(private val context: Context) : SensorSource {
         _connectionState.value = BluetoothConnectionState.Disconnected
     }
 
+    override fun close() {
+        closeSocket()
+        _connectionState.value = BluetoothConnectionState.Disconnected
+    }
+
     private fun closeSocket() {
         val s = socket
         socket = null

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.MIN_PASSWORD_LENGTH
 import com.example.myapplication.data.ManagedUser
 import com.example.myapplication.model.Role
+import com.example.myapplication.ui.components.ConfirmDialog
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.viewmodel.UserManagementViewModel
 
@@ -311,6 +312,7 @@ private fun EditUserDialog(
     var name by rememberSaveable(user.uid) { mutableStateOf(user.name) }
     var role by rememberSaveable(user.uid) { mutableStateOf(user.role ?: Role.LECHERO) }
     var active by rememberSaveable(user.uid) { mutableStateOf(user.active) }
+    var confirmDeactivate by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
@@ -351,7 +353,13 @@ private fun EditUserDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name, role, active) }, enabled = !saving) {
+            TextButton(
+                onClick = {
+                    // Desactivar una cuenta le impide ingresar: se pide confirmacion.
+                    if (user.active && !active) confirmDeactivate = true else onSave(name, role, active)
+                },
+                enabled = !saving
+            ) {
                 Text(if (saving) "Guardando…" else "Guardar")
             }
         },
@@ -359,4 +367,19 @@ private fun EditUserDialog(
             TextButton(onClick = onDismiss, enabled = !saving) { Text("Cancelar") }
         }
     )
+
+    if (confirmDeactivate) {
+        ConfirmDialog(
+            title = "¿Desactivar la cuenta?",
+            text = "${user.name.ifBlank { user.email }} no podrá ingresar a la app. " +
+                "Sus mediciones se conservan y puedes reactivar la cuenta cuando quieras.",
+            confirmLabel = "Desactivar",
+            destructive = true,
+            onConfirm = {
+                confirmDeactivate = false
+                onSave(name, role, active)
+            },
+            onDismiss = { confirmDeactivate = false }
+        )
+    }
 }

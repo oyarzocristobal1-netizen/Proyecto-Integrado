@@ -32,4 +32,7 @@ interface SensorSource {
     suspend fun connect(address: String)
 
     suspend fun disconnect()
+
+    /** Cierra la conexion de inmediato, sin esperar (al cerrar la app). */
+    fun close()
 }
