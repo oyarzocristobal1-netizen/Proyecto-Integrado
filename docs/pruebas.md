@@ -60,11 +60,11 @@ npm test
 | 67 pruebas de `model`, `sensor` y `report` | 67 correctas | Entorno de desarrollo, con un ejecutor compatible con JUnit 4 (sin Gradle) |
 | 10 pruebas de `MeasureViewModelTest` y 3 de `RecordsUiStateTest` | 13 correctas | Mismo entorno, con dobles mínimos de `ViewModel` y corrutinas |
 | Sintaxis de `firestore.rules` | Válida | Validador de reglas de Firebase |
-| 80 pruebas con `gradlew test` | **Pendiente** | Computador del equipo |
+| Pruebas unitarias con `gradlew test` (Gradle 9.6.0) | BUILD SUCCESSFUL, sin fallas | Computador del equipo, 16-11-2026 |
 | 26 pruebas de reglas con el emulador (`npm test`) | 26 correctas, 0 fallidas | Computador del equipo, 16-11-2026 |
 | Compilación de la app y prueba en teléfono | Correcta (app instalada y usada en modo DEMO) | Android Studio y teléfono del equipo |
 
-Falta agregar el resultado de `gradlew test` del equipo.
+
 
 ## 5. Pruebas manuales en el teléfono (modo DEMO)
 
