@@ -47,6 +47,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,6 +70,10 @@ import com.example.myapplication.ui.components.LotPickerDialog
 import com.example.myapplication.ui.components.NoticeBanner
 import com.example.myapplication.ui.components.OfflineBanner
 import com.example.myapplication.ui.components.QualityAssessmentCard
+import com.example.myapplication.ui.components.AnalysisSection
+import com.example.myapplication.data.asAnalysisReading
+import com.example.myapplication.model.analysis.MilkAnalyzer
+import com.example.myapplication.model.analysis.toAnalysisReading
 import com.example.myapplication.ui.components.ScreenTitle
 import com.example.myapplication.ui.components.SensorCard
 import com.example.myapplication.ui.components.SensorStatus
@@ -163,6 +168,19 @@ fun MeasureScreen(
                 item { ReadingStatusRow(measure, reading) }
                 item {
                     QualityAssessmentCard(assessment = reading.overallAssessment, simulated = reading.isSimulated)
+                }
+                item {
+                    // Se interpreta con las mediciones ya registradas del lote actual (si no hay lote, sin historial).
+                    val lotId = records.currentLotId
+                    val analysis = remember(reading, records.recent, lotId, records.ranges, measure.stability) {
+                        MilkAnalyzer.analyze(
+                            current = reading.toAnalysisReading(lotId),
+                            previous = if (lotId == null) emptyList() else records.recent.map { it.asAnalysisReading() },
+                            ranges = records.ranges,
+                            stability = measure.stability
+                        )
+                    }
+                    AnalysisSection(analysis)
                 }
                 item {
                     Text(

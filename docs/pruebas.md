@@ -5,7 +5,7 @@ hardware está listado al final como pendiente.
 
 ## 1. Cómo ejecutarlas
 
-**Pruebas unitarias (81)** — en la carpeta `MyApplication`:
+**Pruebas unitarias (81 verificadas con Gradle + 52 del análisis inteligente por verificar)** — en la carpeta `MyApplication`:
 
 ```
 .\gradlew test          (Windows)
@@ -39,7 +39,10 @@ npm test
 | `report/ReportWritersTest` | 8 | CSV (BOM, punto y coma, coma decimal, neutralización de fórmulas), Excel y Word válidos, reporte vacío, caracteres especiales, resumen con advertencia de datos simulados |
 | `viewmodel/MeasureViewModelTest` | 10 | Pantalla Medir con una caja falsa: sin conexión no hay lecturas inventadas, lecturas de la caja solo en modo caja, registrar solo con lectura estable y reciente, desconexión al volver a DEMO, simulación solo con la pantalla visible, permiso de Bluetooth |
 | `viewmodel/RecordsUiStateTest` | 3 | Filtros del historial por origen y semáforo, contadores de pendientes de sincronizar y simuladas |
-| **Total** | **81** | |
+| `model/analysis/MilkAnalyzerTest` | 43 | Análisis inteligente: 1 a 4 parámetros alterados, niveles leve/moderado/crítico, prioridad, lecturas inválidas y contradictorias, historial (repetición, tendencias, sin historial), configuración y rotulado DEMO (ver `docs/analisis.md`) |
+| `model/analysis/LotAnalyzerTest` | 7 | Análisis por lote: orden por prioridad, no mezcla mediciones de otro lote, mediciones sin lote |
+| `sensor/DemoAnalysisScenariosTest` | 2 | Los 7 escenarios DEMO nuevos producen el análisis esperado con 300 lecturas con ruido cada uno |
+| **Total** | **81 antes del análisis + 52 nuevas** | Total actualizado por confirmar con `./gradlew test` |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 

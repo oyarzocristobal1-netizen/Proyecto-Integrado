@@ -39,6 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myapplication.model.UserSession
+import com.example.myapplication.data.asAnalysisReading
+import com.example.myapplication.model.analysis.LotAnalyzer
+import com.example.myapplication.ui.components.HistoricalAnalysisSection
 import com.example.myapplication.ui.components.EmptyState
 import com.example.myapplication.ui.components.OfflineBanner
 import com.example.myapplication.ui.components.SavedMeasurementRow
@@ -115,6 +118,15 @@ fun HistoryScreen(
                             )
                         }
                     }
+                }
+            }
+
+            if (canFilterLots && state.history.isNotEmpty()) {
+                item {
+                    val lotAnalyses = remember(state.history, state.ranges) {
+                        LotAnalyzer.analyze(state.history.map { it.asAnalysisReading() }, state.ranges)
+                    }
+                    HistoricalAnalysisSection(items = lotAnalyses, lotName = { id -> state.lotName(id) })
                 }
             }
 

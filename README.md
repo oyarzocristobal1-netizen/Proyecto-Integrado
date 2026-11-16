@@ -23,6 +23,7 @@ Equipo: Francisco Álvarez, Fernanda Delgado y Cristóbal Epuyao.
 
 - [Configurar Firebase](docs/configurar-firebase.md): archivo de configuración, cuentas, reglas, índices y datos iniciales.
 - [Arquitectura](docs/arquitectura.md): capas, navegación, flujo de una medición, modo DEMO, trabajo sin conexión.
+- [Análisis inteligente](docs/analisis.md): interpretación de resultados, combinaciones, historial, prioridades y umbrales por validar.
 - [Pruebas](docs/pruebas.md): cómo ejecutar las 81 pruebas unitarias y las 50 de reglas, y pruebas manuales.
 - [Pruebas de seguridad](docs/seguridad.md): hallazgos, ataques simulados contra las reglas y pruebas manuales.
 - [Protocolo de la caja](docs/protocolo-caja.md): formato de datos esperado y lo pendiente con el hardware.
