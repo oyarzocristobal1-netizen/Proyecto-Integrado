@@ -14,8 +14,8 @@ object PdfReportWriter {
     private const val ROW_HEIGHT = 16f
 
     // Anchos de columna en puntos (suman 515 = ancho util)
-    private val widths = floatArrayOf(78f, 70f, 92f, 50f, 36f, 64f, 50f, 75f)
-    private val headers = listOf("Fecha y hora", "Lote", "Lechero", "Temp. °C", "pH", "CE mS/cm", "Turb. %", "Estado")
+    private val widths = floatArrayOf(72f, 62f, 80f, 46f, 32f, 56f, 44f, 70f, 53f)
+    private val headers = listOf("Fecha y hora", "Lote", "Lechero", "Temp. °C", "pH", "CE mS/cm", "Turb. %", "Estado", "Origen")
 
     fun write(data: ReportData, out: OutputStream) {
         val doc = PdfDocument()

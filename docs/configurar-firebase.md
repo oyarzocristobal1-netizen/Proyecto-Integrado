@@ -19,7 +19,7 @@ Sin ese archivo el proyecto no compila (error del plugin `google-services`).
 
 No hay registro público. **La primera cuenta de administrador** se crea en la consola (pasos de abajo).
 Después, el administrador crea las cuentas del **encargado** y de los **lecheros** desde la app:
-**ícono de gestión de usuarios (arriba) → Nuevo trabajador**. La app crea la cuenta, guarda su perfil
+**Más → Gestión de usuarios → Nuevo trabajador**. La app crea la cuenta, guarda su perfil
 y le envía el correo de verificación, sin cerrar la sesión del administrador.
 
 Primera cuenta de administrador, en la consola:
@@ -47,10 +47,17 @@ Revisa también la carpeta de spam.
 ## 5. Publicar las reglas de seguridad
 
 **Firestore Database → Reglas**: borra lo que haya, pega el contenido de `firebase/firestore.rules`
-de este repositorio y pulsa **Publicar**.
+de este repositorio y pulsa **Publicar**. (O con Firebase CLI: `firebase deploy --only firestore` desde la raíz.)
 
-Las reglas hacen cumplir la Tabla 31 en el servidor y exigen correo verificado y cuenta activa: aunque alguien modifique la app, no puede leer
-ni escribir lo que su rol no permite.
+Las reglas hacen cumplir la Tabla 31 en el servidor y exigen correo verificado y cuenta activa: aunque alguien
+modifique la app, no puede leer ni escribir lo que su rol no permite. Además validan el **formato** de cada
+documento (campos exactos, tipos, límites físicos de los sensores, hora del servidor, origen simulado/sensor).
+
+> **Orden importante:** las reglas actuales exigen los campos `origen` y `registradoEn` que solo envía la versión
+> nueva de la app. Primero instalen la versión nueva en todos los teléfonos y después publiquen las reglas;
+> si no, la versión antigua no podrá guardar mediciones.
+
+Antes de publicar se pueden probar en el emulador: ver [pruebas.md](pruebas.md), sección 1.
 
 ## 6. Qué ve cada rol en la app
 
@@ -65,14 +72,16 @@ El lechero es quien toma las muestras en la ordeña; en las mediciones su UID se
 
 ## 7. Datos iniciales para registrar mediciones
 
-**La caja de sensores** (las reglas exigen que cada medición apunte a un dispositivo existente):
-colección `dispositivos`, documento con ID **`caja-01`**:
+**Dispositivos** (las reglas exigen que cada medición apunte a un dispositivo existente). Cuando el
+**administrador ingresa a la app**, esta los registra sola si faltan. También se pueden crear a mano en la
+colección `dispositivos`:
 
-| Campo | Tipo | Valor |
-|---|---|---|
-| `nombre` | string | Caja de sensores 1 |
-| `ubicacion` | string | Sala de ordeña |
-| `estado` | string | `activo` |
+| ID del documento | `nombre` | `ubicacion` | `estado` | Uso |
+|---|---|---|---|---|
+| `caja-01` | Caja de sensores 1 | Sala de ordeña | `activo` | Mediciones reales del sensor |
+| `simulador` | Simulador (modo DEMO) | Aplicación | `activo` | Mediciones simuladas |
+
+Si un encargado o lechero ingresa antes que el administrador, la app avisa que falta el simulador.
 
 **Índices compuestos** (Firestore → Índices → Compuesto → Agregar índice; ámbito Colección).
 También están en `firebase/firestore.indexes.json`. ↑ = Ascendente, ↓ = Descendente.
@@ -89,36 +98,47 @@ Si falta un índice, la app muestra "Falta un índice en Firestore para esta con
 
 ## 8. Cómo se usan los lotes y las mediciones
 
-1. En la pantalla principal, tarjeta **Lote activo → Elegir**: se elige un lote de hoy o se crea el de un
+1. Pestaña **Medir**, tarjeta **Lote activo → Elegir**: se elige un lote de hoy o se crea el de un
    estanque (ID `AAAAMMDD-estanque`, un lote por estanque y día).
-2. **Registrar medición** guarda la lectura que se ve en pantalla en `mediciones`, con el lote, el lechero,
-   la fecha, los cuatro sensores y el semáforo (`resultado.estado`: verde, ambar o rojo).
-3. Sin conexión, la medición queda guardada en el teléfono y se sube sola al volver la red.
-4. El encargado y el administrador ven todo el historial y lo filtran por lote; el lechero ve solo lo suyo.
-5. El encargado y el administrador editan lotes (estanque y observación) desde el ícono **Lotes**.
+2. Arriba se elige **Simulación** (modo DEMO) o **Caja de sensores**. El botón **Registrar** se habilita cuando
+   la lectura es **estable** (4 lecturas parecidas) y **reciente** (menos de 15 s).
+3. Registrar guarda en `mediciones` el lote, el lechero, la hora de la lectura, la hora del servidor, el origen,
+   los cuatro sensores y el semáforo (`resultado.estado`: verde, ambar o rojo), junto con sus alertas.
+4. Sin conexión, la medición queda guardada en el teléfono ("Sin sincronizar") y se sube sola al volver la red.
+5. El encargado y el administrador ven todo el historial y lo filtran por lote; el lechero ve solo lo suyo.
+   Todos pueden filtrar por origen (sensor o simuladas) y por semáforo.
+6. El encargado y el administrador editan lotes (estanque y observación) desde **Más → Lotes**.
 
-Campos que la app agrega además de la Tabla 20 del informe (redundancia controlada, para mostrar nombres
-sin lecturas extra): `nombreLechero` en mediciones; `nombreCreador` y `observacion` en lotes.
+Campos que la app agrega además de la Tabla 20 del informe:
+
+| Colección | Campo | Motivo |
+|---|---|---|
+| `mediciones` | `nombreLechero` | Mostrar el nombre sin lecturas extra (redundancia controlada) |
+| `mediciones` | `origen` (`simulado` o `sensor`) | Distinguir datos simulados del modo DEMO de mediciones reales |
+| `mediciones` | `registradoEn` | Hora del servidor al recibirla (no depende del reloj del teléfono) |
+| `alertas` | `origen` | Marcar alertas que vienen de datos simulados |
+| `lotes` | `nombreCreador`, `observacion` | Mostrar quién lo creó y notas del encargado |
 
 ## 9. Alertas
 
-Cuando el servidor confirma una medición, la app crea una alerta en `alertas` por cada valor fuera de rango
-(ID `idMedicion-tipo`, sin duplicados):
+Al registrar una medición, la app guarda **en la misma escritura** una alerta en `alertas` por cada valor fuera
+de rango (todo o nada; ID `idMedicion-tipo`, sin duplicados). Con los rangos de referencia:
 
 | Tipo | Se genera si | Severidad alta si |
 |---|---|---|
-| `temperatura` | > 4 °C | > 25 °C |
-| `ph` | fuera de 6,6–6,8 | < 6,4 o > 7,0 |
-| `conductividad` | fuera de 4,0–6,0 mS/cm | > 6,2 o < 3,5 |
-| `turbidez` | < 50 % | siempre |
+| `temperatura` | > `tempMax` (4 °C) | > 25 °C |
+| `ph` | fuera de `phMin`–`phMax` (6,6–6,8) | más de 0,2 fuera del rango |
+| `conductividad` | fuera de `condMin`–`condMax` (4,0–5,5 mS/cm) | > `condMax` + 0,7 o < `condMin` − 0,5 |
+| `turbidez` | < `turbMin` (50 %) | siempre |
 
 Campos: `idMedicion`, `idLote`, `tipo`, `severidad` (media o alta), `fecha`, `atendida` (false al crearse),
-`valor`, `mensaje` y `nombreLechero`. Todos los roles ven las alertas (campana con el número de pendientes);
-solo el encargado y el administrador las marcan como atendidas, y la regla solo permite cambiar `atendida`.
+`valor`, `mensaje`, `nombreLechero` y `origen`. Todos los roles ven las alertas (pestaña **Alertas**, con el
+número de pendientes); solo el encargado y el administrador las marcan como atendidas (con confirmación), y la
+regla solo permite cambiar `atendida` de false a true.
 
 ## 10. Rangos de calidad (administrador)
 
-Menú ⋮ → **Rangos de calidad**. Se guardan en `configuracion/rangos` y se aplican en todos los teléfonos
+**Más → Rangos de calidad**. Se guardan en `configuracion/rangos` y se aplican en todos los teléfonos
 (semáforo, tarjetas, evaluación y alertas). Si el documento no existe, la app usa los valores de referencia.
 
 | Campo | Referencia | Uso |
@@ -133,10 +153,15 @@ calibre la turbidez con la caja real. Actualizar la Tabla 20 del informe con `co
 
 ## 11. Reportes (encargado y administrador)
 
-Menú ⋮ → **Reportes**: periodo (hoy, 7 o 30 días), lote (o todos) y formato: **PDF, Excel (.xlsx), Word (.docx)
+**Más → Reportes**: periodo (hoy, 7 o 30 días), lote (o todos) y formato: **PDF, Excel (.xlsx), Word (.docx)
 y CSV**, uno o varios a la vez. La app genera los archivos en el teléfono y abre el menú **Compartir**
-(correo, WhatsApp, Drive…). Incluyen un resumen (cantidad, semáforo en %, promedios) y la tabla de mediciones.
-Necesitan conexión a internet para leer las mediciones (consulta Q4; con lote usa el índice `idLote` + `fechaHora`).
+(correo, WhatsApp, Drive…). Incluyen un resumen (cantidad, semáforo en %, promedios) y la tabla de mediciones
+con la columna **Origen**.
+
+- Por defecto incluyen **solo mediciones reales**. Con el interruptor "Incluir simuladas" se agregan las del modo
+  DEMO, marcadas como "Simulada" en cada fila y con una advertencia en el resumen.
+- Leen las mediciones **directamente del servidor** (consulta Q4; con lote usa el índice `idLote` + `fechaHora`),
+  así que necesitan internet: un reporte hecho con la copia del teléfono podría quedar incompleto.
 
 ## Problemas comunes
 
@@ -148,3 +173,7 @@ Necesitan conexión a internet para leer las mediciones (consulta Q4; con lote u
 | "Tu cuenta no tiene un rol válido…" | El campo `rol` no es `admin`, `encargado` ni `lechero`, o el nombre del campo tiene un espacio (`"rol "`). |
 | "Tu cuenta está desactivada o incompleta…" | Falta el campo `activo` o es `false`. |
 | "…permiso denegado. Revisa las reglas de Firestore." | Las reglas no están publicadas o el correo no está verificado. |
+| "El simulador no está registrado…" | El administrador debe ingresar una vez a la app (registra `simulador` y `caja-01`). |
+| "La nube rechazó la medición: permiso denegado…" | Reglas nuevas con una versión antigua de la app, o falta el lote o el dispositivo. |
+| "Lecturas descartadas por datos incompletos…" | La caja envió tramas incompletas o fuera de límites (ver [protocolo-caja.md](protocolo-caja.md)). |
+| "Falta un índice en Firestore…" | Crear los índices de la sección 7 o publicar `firebase/firestore.indexes.json`. |

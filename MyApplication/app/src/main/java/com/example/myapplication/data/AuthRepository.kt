@@ -26,8 +26,8 @@ class AuthException(val error: AuthError) : Exception(error.message)
  * Roles validos: admin, encargado y lechero.
  */
 class AuthRepository(
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
-    private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+    private val auth: FirebaseAuth,
+    private val db: FirebaseFirestore
 ) {
     val hasSession: Boolean get() = auth.currentUser != null
 

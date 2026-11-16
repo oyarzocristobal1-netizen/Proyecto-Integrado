@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -140,6 +141,28 @@ fun ReportsScreen(
                             })
                         }
                     }
+                }
+            }
+
+            SectionCard(
+                "🧪",
+                "Mediciones simuladas",
+                "Por defecto el reporte incluye solo mediciones reales tomadas con el sensor."
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Incluir simuladas (modo DEMO)", modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = state.includeSimulated,
+                        onCheckedChange = viewModel::setIncludeSimulated,
+                        enabled = !state.generating
+                    )
+                }
+                if (state.includeSimulated) {
+                    Text(
+                        "Quedarán marcadas como SIMULADAS en la columna Origen y en el resumen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
 

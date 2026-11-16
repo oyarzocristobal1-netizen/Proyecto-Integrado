@@ -1,7 +1,8 @@
 package com.example.myapplication.ui.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -12,17 +13,38 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myapplication.ui.theme.AppTheme
+import com.example.myapplication.ui.theme.StatusTone
 
 enum class SensorStatus {
     GOOD,
     WARNING,
     ALERT
+}
+
+/** Escala de frio a calor para la barra de temperatura (azul -> verde -> amarillo -> rojo). */
+val TemperatureScale: Brush = Brush.horizontalGradient(
+    listOf(Color(0xFF1E88E5), Color(0xFF43A047), Color(0xFFFDD835), Color(0xFFE53935))
+)
+
+/** Colores del estado (se adaptan al modo claro u oscuro). */
+@Composable
+fun sensorStatusTone(status: SensorStatus): StatusTone = when (status) {
+    SensorStatus.GOOD -> AppTheme.status.good
+    SensorStatus.WARNING -> AppTheme.status.warning
+    SensorStatus.ALERT -> AppTheme.status.alert
 }
 
 @Composable
@@ -35,56 +57,43 @@ fun SensorCard(
     icon: ImageVector,
     referenceRange: String,
     modifier: Modifier = Modifier,
-    progress: Float? = null
+    progress: Float? = null,
+    /** Si se indica, la barra usa esta escala de color (por ejemplo, frio -> calor). */
+    progressBrush: Brush? = null
 ) {
-    val statusColor by animateColorAsState(
-        targetValue = when (status) {
-            SensorStatus.GOOD -> Color(0xFF2E7D32)
-            SensorStatus.WARNING -> Color(0xFFF57F17)
-            SensorStatus.ALERT -> Color(0xFFC62828)
-        },
-        label = "statusColor"
-    )
-
-    val statusContainerColor by animateColorAsState(
-        targetValue = when (status) {
-            SensorStatus.GOOD -> Color(0xFFE8F5E9)
-            SensorStatus.WARNING -> Color(0xFFFFFDE7)
-            SensorStatus.ALERT -> Color(0xFFFFEBEE)
-        },
-        label = "statusContainerColor"
-    )
+    val tone = sensorStatusTone(status)
+    val statusColor by animateColorAsState(targetValue = tone.content, label = "statusColor")
+    val statusContainerColor by animateColorAsState(targetValue = tone.container, label = "statusContainer")
 
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$title: $valueString $unit, $statusText. Rango de referencia $referenceRange."
+            },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            // Cabecera: icono + titulo (una sola linea)
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Icono + titulo
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
                 Text(
@@ -97,13 +106,10 @@ fun SensorCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Etiqueta de estado: en su propia linea para que nunca se corte
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = statusContainerColor
-            ) {
+            // Etiqueta de estado en su propia linea (nunca se corta)
+            Surface(shape = RoundedCornerShape(50), color = statusContainerColor) {
                 Text(
                     text = statusText,
                     color = statusColor,
@@ -111,55 +117,79 @@ fun SensorCard(
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     softWrap = false,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Value Display
-            Row(
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
+            // Valor grande + unidad
+            Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = valueString,
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    ),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                if (unit.isNotEmpty()) {
-                    Text(
-                        text = unit,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = unit,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 5.dp)
+                )
             }
 
-            // Barra de nivel (todas las tarjetas la tienen, para que queden iguales)
-            Spacer(modifier = Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = { (progress ?: 0f).coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
+            Spacer(modifier = Modifier.height(10.dp))
+
+            LevelBar(
+                progress = (progress ?: 0f).coerceIn(0f, 1f),
                 color = statusColor,
+                brush = progressBrush,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Reference Range Footer
             Text(
                 text = "Rango ref: $referenceRange",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+/** Barra de nivel con un punto que marca la lectura actual. */
+@Composable
+private fun LevelBar(progress: Float, color: Color, brush: Brush?, trackColor: Color) {
+    val animated by animateFloatAsState(targetValue = progress, label = "level")
+    val thumbRing = MaterialTheme.colorScheme.surfaceContainerLowest
+    val thumbCenter = MaterialTheme.colorScheme.onSurface
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(14.dp)
+    ) {
+        val barHeight = 6.dp.toPx()
+        val top = (size.height - barHeight) / 2f
+        val radius = CornerRadius(barHeight / 2f, barHeight / 2f)
+        val thumbRadius = 7.dp.toPx()
+        val usable = size.width - 2 * thumbRadius
+        val x = thumbRadius + usable * animated
+
+        if (brush != null) {
+            // Escala completa (frio -> calor); el punto indica donde esta la lectura
+            drawRoundRect(brush = brush, topLeft = Offset(0f, top), size = Size(size.width, barHeight), cornerRadius = radius)
+        } else {
+            drawRoundRect(color = trackColor, topLeft = Offset(0f, top), size = Size(size.width, barHeight), cornerRadius = radius)
+            drawRoundRect(color = color, topLeft = Offset(0f, top), size = Size(x, barHeight), cornerRadius = radius)
+        }
+        drawCircle(color = thumbRing, radius = thumbRadius, center = Offset(x, size.height / 2f))
+        drawCircle(
+            color = if (brush != null) thumbCenter else color,
+            radius = thumbRadius - 2.dp.toPx(),
+            center = Offset(x, size.height / 2f)
+        )
     }
 }

@@ -2,15 +2,14 @@ package com.example.myapplication.viewmodel
 
 import android.util.Patterns
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.myapplication.data.AuthException
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.myapplication.data.AuthRepository
 import com.example.myapplication.data.MIN_PASSWORD_LENGTH
+import com.example.myapplication.data.toUserMessage
 import com.example.myapplication.model.UserSession
-import com.google.firebase.FirebaseNetworkException
-import com.google.firebase.FirebaseTooManyRequestsException
-import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,9 +29,7 @@ sealed interface AuthUiState {
     data class LoggedIn(val session: UserSession) : AuthUiState
 }
 
-class AuthViewModel : ViewModel() {
-
-    private val repository = AuthRepository()
+class AuthViewModel(private val repository: AuthRepository) : ViewModel() {
 
     private val _state = MutableStateFlow<AuthUiState>(AuthUiState.Checking)
     val state: StateFlow<AuthUiState> = _state.asStateFlow()
@@ -105,18 +102,16 @@ class AuthViewModel : ViewModel() {
     }
 
     /** Mensajes claros y sin detalles internos (buena practica OWASP: no exponer informacion del sistema). */
-    private fun friendlyMessage(e: Exception): String = when (e) {
-        is AuthException -> e.error.message
-        is FirebaseAuthInvalidCredentialsException,
-        is FirebaseAuthInvalidUserException -> "Correo o contraseña incorrectos."
-        is FirebaseTooManyRequestsException -> "Demasiados intentos. Espera unos minutos e inténtalo de nuevo."
-        is FirebaseNetworkException -> "Sin conexión a internet. Revisa la red e inténtalo de nuevo."
-        is FirebaseFirestoreException ->
-            if (e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-                "No se pudo leer tu perfil: permiso denegado. Revisa las reglas de Firestore."
-            } else {
-                "No se pudo leer tu perfil. Inténtalo de nuevo."
-            }
-        else -> "No se pudo completar la operación. Inténtalo de nuevo."
+    private fun friendlyMessage(e: Exception): String =
+        if (e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+            "No se pudo leer tu perfil (permiso denegado). Pide al administrador que revise tu cuenta."
+        } else {
+            e.toUserMessage()
+        }
+
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer { AuthViewModel(appContainer().authRepository) }
+        }
     }
 }

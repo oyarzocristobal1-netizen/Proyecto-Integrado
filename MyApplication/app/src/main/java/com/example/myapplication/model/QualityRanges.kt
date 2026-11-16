@@ -22,6 +22,7 @@ data class QualityRanges(
         phMin >= phMax -> "El pH mínimo debe ser menor que el pH máximo."
         condMin < 0f -> "La conductividad mínima no puede ser negativa."
         condMin >= condMax -> "La conductividad mínima debe ser menor que la máxima."
+        condMax > 20f -> "La conductividad máxima no puede superar 20 mS/cm."
         turbMin < 0f || turbMin > 100f -> "La turbidez mínima debe estar entre 0 y 100 %."
         else -> null
     }

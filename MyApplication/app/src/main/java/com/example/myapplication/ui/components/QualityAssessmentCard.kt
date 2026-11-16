@@ -1,10 +1,12 @@
 package com.example.myapplication.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
@@ -14,49 +16,36 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.model.MilkQualityAssessment
 import com.example.myapplication.model.QualityLevel
+import com.example.myapplication.ui.theme.AppTheme
 
 @Composable
 fun QualityAssessmentCard(
     assessment: MilkQualityAssessment,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** true si la lectura es simulada (modo DEMO): el resultado no corresponde a leche real. */
+    simulated: Boolean = false
 ) {
-    val (containerColor, contentColor, icon, iconBgColor) = when (assessment.level) {
-        QualityLevel.EXCELLENT -> Quad(
-            Color(0xFFE8F5E9),
-            Color(0xFF1B5E20),
-            Icons.Default.CheckCircle,
-            Color(0xFFA5D6A7)
-        )
-        QualityLevel.ACCEPTABLE -> Quad(
-            Color(0xFFE3F2FD),
-            Color(0xFF0D47A1),
-            Icons.Default.Info,
-            Color(0xFF90CAF9)
-        )
-        QualityLevel.WARNING -> Quad(
-            Color(0xFFFFF8E1),
-            Color(0xFFE65100),
-            Icons.Default.Warning,
-            Color(0xFFFFE082)
-        )
-        QualityLevel.REJECTED -> Quad(
-            Color(0xFFFFEBEE),
-            Color(0xFFB71C1C),
-            Icons.Default.Error,
-            Color(0xFFEF9A9A)
-        )
+    val status = AppTheme.status
+    val (tone, icon) = when (assessment.level) {
+        QualityLevel.EXCELLENT -> status.good to Icons.Default.CheckCircle
+        QualityLevel.ACCEPTABLE -> status.info to Icons.Default.Info
+        QualityLevel.WARNING -> status.warning to Icons.Default.Warning
+        QualityLevel.REJECTED -> status.alert to Icons.Default.Error
     }
+    val containerColor = tone.container
+    val contentColor = tone.content
+    val iconBgColor = tone.content.copy(alpha = 0.16f)
 
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        border = BorderStroke(1.5.dp, contentColor.copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Column(
             modifier = Modifier.padding(20.dp)
@@ -67,7 +56,7 @@ fun QualityAssessmentCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(52.dp)
                         .clip(CircleShape)
                         .background(iconBgColor),
                     contentAlignment = Alignment.Center
@@ -83,12 +72,12 @@ fun QualityAssessmentCard(
                 Column {
                     Text(
                         text = assessment.title,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = contentColor
                     )
                     Text(
-                        text = "Evaluación Diagnóstica",
+                        text = if (simulated) "Evaluación de datos SIMULADOS" else "Evaluación diagnóstica",
                         style = MaterialTheme.typography.labelMedium,
                         color = contentColor.copy(alpha = 0.8f)
                     )
@@ -124,15 +113,15 @@ fun QualityAssessmentCard(
                         verticalAlignment = Alignment.Top,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "•",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = contentColor
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = contentColor,
+                            modifier = Modifier.size(18.dp)
                         )
                         Text(
                             text = rec,
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = contentColor
                         )
                     }
@@ -141,5 +130,3 @@ fun QualityAssessmentCard(
         }
     }
 }
-
-private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

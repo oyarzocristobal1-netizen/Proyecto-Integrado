@@ -1,12 +1,16 @@
 // Reglas de seguridad de Cloud Firestore - Proyecto Integrado (calidad de la leche)
 // Coherentes con la Tabla 31 (matriz de permisos por rol): admin, encargado y lechero.
-// Se publican en la consola: Firestore Database -> Reglas -> pegar este archivo -> Publicar.
+// Ademas de los permisos, validan el formato de cada documento para que no se guarden
+// registros incompletos, con tipos incorrectos o con valores fisicamente imposibles.
+// Pruebas automaticas: firebase/tests/firestore.rules.test.mjs (emulador de Firestore).
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
+
+    // ------------------------------------------------------------ sesion y rol
     function logueado() {
-      return request.auth != null && request.auth.token.email_verified;
+      return request.auth != null && request.auth.token.email_verified == true;
     }
     function perfil() {
       return get(/databases/$(db)/documents/usuarios/$(request.auth.uid)).data;
@@ -15,49 +19,131 @@ service cloud.firestore {
     function activo() { return logueado() && perfil().activo == true; }
     function esAdmin() { return activo() && perfil().rol == 'admin'; }
     function esEncargado() { return activo() && perfil().rol in ['admin', 'encargado']; }
-    function existe(col, id) {
-      return exists(/databases/$(db)/documents/$(col)/$(id));
+
+    // ------------------------------------------------------------ validaciones
+    // existsAfter: el documento existe al terminar la escritura (permite escribir
+    // medicion y alertas juntas en una sola operacion atomica).
+    function existeDespues(col, id) {
+      return existsAfter(/databases/$(db)/documents/$(col)/$(id));
+    }
+    function texto(v, maximo) { return v is string && v.size() > 0 && v.size() <= maximo; }
+    function numeroEntre(v, minimo, maximo) { return v is number && v >= minimo && v <= maximo; }
+    function sensoresValidos(s) {
+      return s is map
+        && s.keys().hasAll(['temp', 'ph', 'cond', 'turb'])
+        && s.keys().hasOnly(['temp', 'ph', 'cond', 'turb'])
+        && numeroEntre(s.temp, -5, 80)
+        && numeroEntre(s.ph, 0, 14)
+        && numeroEntre(s.cond, 0, 20)
+        && numeroEntre(s.turb, 0, 100);
+    }
+    function rangosValidos(r) {
+      return numeroEntre(r.tempMax, 0, 20)
+        && numeroEntre(r.phMin, 0, 14) && numeroEntre(r.phMax, 0, 14) && r.phMin < r.phMax
+        && numeroEntre(r.condMin, 0, 20) && numeroEntre(r.condMax, 0, 20) && r.condMin < r.condMax
+        && numeroEntre(r.turbMin, 0, 100);
     }
 
+    // ------------------------------------------------------------ usuarios
     match /usuarios/{uid} {
       // Cada persona lee su propio perfil (la app lo necesita al ingresar); el administrador lee todos
       allow read: if logueado() && (request.auth.uid == uid || esAdmin());
-      // Solo el administrador crea cuentas, cambia roles o las desactiva
-      allow write: if esAdmin();
+      // Solo el administrador crea cuentas, cambia roles o las desactiva,
+      // y no puede quitarse a si mismo el rol de administrador ni desactivarse.
+      allow create, update: if esAdmin()
+        && request.resource.data.keys().hasOnly(['nombre', 'correo', 'rol', 'activo'])
+        && texto(request.resource.data.nombre, 80)
+        && texto(request.resource.data.correo, 120)
+        && request.resource.data.rol in ['admin', 'encargado', 'lechero']
+        && request.resource.data.activo is bool
+        && (uid != request.auth.uid
+            || (request.resource.data.rol == 'admin' && request.resource.data.activo == true));
+      allow delete: if false;   // las cuentas se desactivan, no se borran (trazabilidad)
     }
+
+    // ------------------------------------------------------------ dispositivos
     match /dispositivos/{id} {
       allow read: if activo();
-      allow write: if esAdmin();
-    }
-    match /lotes/{id} {
-      allow read: if activo();
-      allow create: if activo() && request.resource.data.creadoPor == request.auth.uid;
-      allow update: if esEncargado();
+      allow create, update: if esAdmin()
+        && request.resource.data.keys().hasOnly(['nombre', 'ubicacion', 'estado', 'ultimaCalibracion'])
+        && texto(request.resource.data.nombre, 60)
+        && request.resource.data.estado in ['activo', 'inactivo'];
       allow delete: if false;
     }
+
+    // ------------------------------------------------------------ lotes
+    match /lotes/{id} {
+      allow read: if activo();
+      allow create: if activo()
+        && request.resource.data.keys().hasOnly(['estanque', 'fecha', 'creadoPor', 'nombreCreador', 'observacion'])
+        && request.resource.data.creadoPor == request.auth.uid
+        && texto(request.resource.data.estanque, 40)
+        && request.resource.data.fecha is timestamp
+        && request.resource.data.fecha <= request.time + duration.value(5, 'm')
+        && request.resource.data.observacion is string
+        && request.resource.data.observacion.size() <= 200;
+      allow update: if esEncargado()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estanque', 'observacion'])
+        && texto(request.resource.data.estanque, 40)
+        && request.resource.data.observacion is string
+        && request.resource.data.observacion.size() <= 200;
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------ mediciones
     match /mediciones/{id} {
       allow read: if esEncargado()
                   || (activo() && resource.data.uidLechero == request.auth.uid);
       allow create: if activo()
+        && request.resource.data.keys().hasOnly(['idDispositivo', 'idLote', 'uidLechero', 'nombreLechero',
+             'fechaHora', 'registradoEn', 'origen', 'sensores', 'resultado'])
         && request.resource.data.uidLechero == request.auth.uid
+        && request.resource.data.nombreLechero is string
+        // Origen: los datos simulados (modo DEMO) solo se guardan con el dispositivo "simulador"
+        && ((request.resource.data.origen == 'simulado' && request.resource.data.idDispositivo == 'simulador')
+            || (request.resource.data.origen == 'sensor' && request.resource.data.idDispositivo != 'simulador'))
+        // Hora del servidor al recibirla y hora de la medicion coherente (hasta 7 dias sin conexion)
+        && request.resource.data.registradoEn == request.time
         && request.resource.data.fechaHora is timestamp
-        && request.resource.data.sensores.temp is number
-        && request.resource.data.sensores.ph is number
-        && request.resource.data.sensores.ph >= 0 && request.resource.data.sensores.ph <= 14
-        && existe('lotes', request.resource.data.idLote)
-        && existe('dispositivos', request.resource.data.idDispositivo);
+        && request.resource.data.fechaHora <= request.time + duration.value(2, 'm')
+        && request.resource.data.fechaHora >= request.time - duration.value(7, 'd')
+        && sensoresValidos(request.resource.data.sensores)
+        && request.resource.data.resultado.estado in ['verde', 'ambar', 'rojo']
+        && existeDespues('lotes', request.resource.data.idLote)
+        && existeDespues('dispositivos', request.resource.data.idDispositivo);
       allow update, delete: if false;          // mediciones inmutables
     }
+
+    // ------------------------------------------------------------ alertas
     match /alertas/{id} {
       allow read: if activo();
+      // Se crean junto con su medicion (misma escritura), por quien registro la medicion
       allow create: if activo()
-        && existe('mediciones', request.resource.data.idMedicion);
+        && request.resource.data.keys().hasOnly(['idMedicion', 'idLote', 'tipo', 'severidad', 'fecha',
+             'atendida', 'valor', 'mensaje', 'nombreLechero', 'origen'])
+        && id == request.resource.data.idMedicion + '-' + request.resource.data.tipo
+        && request.resource.data.tipo in ['temperatura', 'ph', 'conductividad', 'turbidez']
+        && request.resource.data.severidad in ['media', 'alta']
+        && request.resource.data.atendida == false
+        && request.resource.data.valor is number
+        && request.resource.data.origen in ['simulado', 'sensor']
+        && request.resource.data.fecha is timestamp
+        && existeDespues('mediciones', request.resource.data.idMedicion)
+        && getAfter(/databases/$(db)/documents/mediciones/$(request.resource.data.idMedicion)).data.uidLechero
+             == request.auth.uid;
+      // Encargado y administrador solo pueden marcarla como atendida
       allow update: if esEncargado()
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['atendida']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['atendida'])
+        && request.resource.data.atendida == true;
+      allow delete: if false;
     }
+
+    // ------------------------------------------------------------ administracion
     match /calibraciones/{id} { allow read, write: if esAdmin(); }
-    match /configuracion/{id} { allow read: if activo(); allow write: if esAdmin(); }
+    match /configuracion/{id} {
+      allow read: if activo();
+      allow write: if esAdmin() && id == 'rangos' && rangosValidos(request.resource.data);
+    }
     // Todo lo demas queda denegado por defecto
   }
 }

@@ -19,7 +19,9 @@ data class ReportRow(
     val conductivity: Double,
     val turbidity: Double,
     /** verde, ambar o rojo */
-    val status: String
+    val status: String,
+    /** true si la medicion se tomo en modo DEMO (datos simulados, no reales) */
+    val simulated: Boolean
 )
 
 /** Contenido del reporte, independiente del formato. */
@@ -45,6 +47,10 @@ data class ReportData(
             "Generado por: $generatedBy, el ${ReportFormat.dateTime(generatedAt)}",
             "Mediciones: $total"
         )
+        val simulatedCount = rows.count { it.simulated }
+        if (simulatedCount > 0) {
+            lines += "ATENCIÓN: incluye $simulatedCount mediciones SIMULADAS (modo DEMO). No son mediciones reales de leche."
+        }
         if (rows.isNotEmpty()) {
             lines += "Semáforo: verde ${count("verde")} (${ReportFormat.decimal(percent("verde"), 1)} %), " +
                 "ámbar ${count("ambar")} (${ReportFormat.decimal(percent("ambar"), 1)} %), " +
@@ -60,7 +66,7 @@ data class ReportData(
     companion object {
         val HEADERS = listOf(
             "Fecha y hora", "Lote", "Lechero", "Temperatura (°C)", "pH",
-            "Conductividad (mS/cm)", "Turbidez (%)", "Estado"
+            "Conductividad (mS/cm)", "Turbidez (%)", "Estado", "Origen"
         )
     }
 }
@@ -95,8 +101,11 @@ object ReportFormat {
         decimal(row.ph, 2),
         decimal(row.conductivity, 2),
         decimal(row.turbidity, 1),
-        statusLabel(row.status)
+        statusLabel(row.status),
+        sourceLabel(row)
     )
+
+    fun sourceLabel(row: ReportRow): String = if (row.simulated) "Simulada" else "Sensor"
 }
 
 /** CSV para Excel en Chile: separador punto y coma, coma decimal, UTF-8 con BOM. */
@@ -222,7 +231,7 @@ object XlsxReportWriter {
         sb.append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
         sb.append("""<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">""")
         sb.append("""<cols><col min="1" max="1" width="18" customWidth="1"/><col min="2" max="3" width="22" customWidth="1"/>""")
-        sb.append("""<col min="4" max="8" width="16" customWidth="1"/></cols><sheetData>""")
+        sb.append("""<col min="4" max="9" width="16" customWidth="1"/></cols><sheetData>""")
         var r = 1
         sb.append("""<row r="$r">""").append(inlineCell("A$r", data.title, 1)).append("</row>")
         r++
@@ -245,6 +254,7 @@ object XlsxReportWriter {
             sb.append(numberCell("F$r", round(row.conductivity, 2)))
             sb.append(numberCell("G$r", round(row.turbidity, 1)))
             sb.append(inlineCell("H$r", ReportFormat.statusLabel(row.status)))
+            sb.append(inlineCell("I$r", ReportFormat.sourceLabel(row)))
             sb.append("</row>")
             r++
         }
@@ -285,7 +295,7 @@ object DocxReportWriter {
     private fun paragraph(text: String, bold: Boolean = false, size: Int = 20, after: Int = 80): String =
         """<w:p><w:pPr><w:spacing w:after="$after"/></w:pPr>${run(text, bold, size)}</w:p>"""
 
-    private val widths = listOf(1350, 1250, 1350, 1150, 650, 1300, 950, 1300) // suma 9300 (A4 vertical, margenes 2 cm)
+    private val widths = listOf(1300, 1150, 1250, 1100, 650, 1250, 950, 1150, 950) // suma 9750 (A4, margenes 1,8 cm)
 
     private fun cell(text: String, width: Int, header: Boolean): String =
         """<w:tc><w:tcPr><w:tcW w:w="$width" w:type="dxa"/>""" +
@@ -316,7 +326,7 @@ object DocxReportWriter {
         sb.append("</w:tbl>")
         if (data.rows.isEmpty()) sb.append(paragraph("No hay mediciones en el periodo elegido."))
         sb.append("""<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>""")
-        sb.append("""<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>""")
+        sb.append("""<w:pgMar w:top="1021" w:right="1021" w:bottom="1021" w:left="1021" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>""")
         sb.append("</w:body></w:document>")
         return sb.toString()
     }

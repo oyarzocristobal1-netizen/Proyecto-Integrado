@@ -3,10 +3,15 @@ package com.example.myapplication.viewmodel
 import android.app.Application
 import android.net.Uri
 import androidx.core.content.FileProvider
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.myapplication.data.Lot
+import com.example.myapplication.data.REPORT_LIMIT
 import com.example.myapplication.data.RecordsRepository
+import com.example.myapplication.data.toUserMessage
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.report.CsvReportWriter
 import com.example.myapplication.report.DocxReportWriter
@@ -14,7 +19,6 @@ import com.example.myapplication.report.PdfReportWriter
 import com.example.myapplication.report.ReportData
 import com.example.myapplication.report.ReportRow
 import com.example.myapplication.report.XlsxReportWriter
-import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +54,11 @@ data class ReportsUiState(
     val lotId: String? = null,
     /** Formatos elegidos (se pueden elegir varios o todos). */
     val formats: Set<ExportFormat> = setOf(ExportFormat.PDF),
+    /**
+     * Incluir mediciones simuladas (modo DEMO). Por defecto no: un reporte de calidad debe tener
+     * solo datos reales. Si se incluyen, cada fila y el resumen quedan marcados como SIMULADOS.
+     */
+    val includeSimulated: Boolean = false,
     val generating: Boolean = false,
     val message: String? = null,
     /** Se llena cuando hay archivos para compartir; la pantalla abre "Compartir" y lo limpia. */
@@ -57,9 +66,10 @@ data class ReportsUiState(
 )
 
 /** Reportes del historial en PDF, Excel, Word y CSV (solo encargado y administrador). */
-class ReportsViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val repository = RecordsRepository()
+class ReportsViewModel(
+    private val app: Application,
+    private val repository: RecordsRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(ReportsUiState())
     val state: StateFlow<ReportsUiState> = _state.asStateFlow()
@@ -74,6 +84,8 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun selectAllFormats() = _state.update { it.copy(formats = ExportFormat.entries.toSet()) }
+
+    fun setIncludeSimulated(include: Boolean) = _state.update { it.copy(includeSimulated = include) }
 
     fun messageShown() = _state.update { it.copy(message = null) }
 
@@ -93,7 +105,19 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 val (from, to) = range(st.period)
-                val measurements = repository.fetchForReport(from, to, st.lotId)
+                val all = repository.fetchForReport(from, to, st.lotId)
+                val measurements = if (st.includeSimulated) all else all.filter { !it.isSimulated }
+                if (measurements.isEmpty()) {
+                    val simulated = all.count { it.isSimulated }
+                    val text = if (simulated > 0 && !st.includeSimulated) {
+                        "El periodo solo tiene $simulated medición(es) simulada(s). Activa \"Incluir simuladas\" " +
+                            "para exportarlas (quedarán marcadas como SIMULADAS)."
+                    } else {
+                        "No hay mediciones en el periodo y lote elegidos."
+                    }
+                    _state.update { it.copy(generating = false, message = text) }
+                    return@launch
+                }
                 val lotNames = lots.associate { it.id to it.tank }
                 val day = SimpleDateFormat("dd/MM/yyyy", Locale.US)
                 val data = ReportData(
@@ -111,17 +135,24 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
                             ph = m.ph,
                             conductivity = m.conductivity,
                             turbidity = m.turbidity,
-                            status = m.status
+                            status = m.status,
+                            simulated = m.isSimulated
                         )
                     }
                 )
                 val uris = withContext(Dispatchers.IO) { writeFiles(data, st.formats) }
                 val mime = if (st.formats.size == 1) st.formats.first().mimeType else "*/*"
+                // Al terminar se abre directamente "Compartir"; solo se avisa si el reporte quedo recortado.
+                val limitNote = if (all.size >= REPORT_LIMIT) {
+                    "Se incluyeron las $REPORT_LIMIT mediciones más recientes (máximo por reporte): acota el periodo."
+                } else {
+                    null
+                }
                 _state.update {
                     it.copy(
                         generating = false,
                         ready = GeneratedReport(uris, mime, data.rows.size),
-                        message = "Reporte listo: ${data.rows.size} mediciones."
+                        message = limitNote
                     )
                 }
             } catch (e: Exception) {
@@ -143,7 +174,6 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun writeFiles(data: ReportData, formats: Set<ExportFormat>): List<Uri> {
-        val app = getApplication<Application>()
         val dir = File(app.cacheDir, "reportes").apply { mkdirs() }
         // Se borran los reportes anteriores para no llenar la memoria del telefono.
         dir.listFiles()?.forEach { it.delete() }
@@ -163,11 +193,21 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun friendlyMessage(e: Exception): String = when {
-        e is FirebaseNetworkException -> "Sin conexión: el reporte necesita internet para leer las mediciones."
+        e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.UNAVAILABLE ->
+            "Sin conexión: el reporte necesita internet para leer todas las mediciones del servidor."
         e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.PERMISSION_DENIED ->
             "Permiso denegado: solo el encargado y el administrador pueden exportar."
-        e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION ->
-            "Falta un índice en Firestore para este reporte (ver docs/configurar-firebase.md)."
-        else -> "No se pudo generar el reporte. Inténtalo de nuevo."
+        e is FirebaseFirestoreException -> e.toUserMessage()
+        e is java.io.IOException -> "No se pudo escribir el archivo del reporte en el teléfono."
+        else -> e.toUserMessage()
+    }
+
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application
+                ReportsViewModel(app, appContainer().recordsRepository)
+            }
+        }
     }
 }
