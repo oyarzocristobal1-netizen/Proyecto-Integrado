@@ -5,7 +5,7 @@ hardware está listado al final como pendiente.
 
 ## 1. Cómo ejecutarlas
 
-**Pruebas unitarias (80)** — en la carpeta `MyApplication`:
+**Pruebas unitarias (81)** — en la carpeta `MyApplication`:
 
 ```
 .\gradlew test          (Windows)
@@ -15,7 +15,7 @@ hardware está listado al final como pendiente.
 El informe queda en `MyApplication/app/build/reports/tests/testDebugUnitTest/index.html`.
 En Android Studio también se pueden ejecutar con clic derecho sobre `app/src/test` → *Run Tests*.
 
-**Pruebas de las reglas de Firestore (26)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
+**Pruebas de las reglas de Firestore (50)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
 no tocan la base real):
 
 ```
@@ -36,10 +36,10 @@ npm test
 | `model/DashboardStatsTest` | 5 | Indicadores del panel: mediciones de hoy, % conforme, corte a medianoche en hora de Chile, promedios diarios, conteo de simuladas |
 | `sensor/SensorFrameParserTest` | 12 | Lector de tramas de la caja: formato `DATA:`, clave:valor, ciclo de 4 líneas, tramas incompletas o corruptas, coma decimal, `TURB` no se confunde con `T` |
 | `sensor/DemoReadingGeneratorTest` | 2 | Las lecturas del modo DEMO salen marcadas como simuladas y dentro de los límites |
-| `report/ReportWritersTest` | 7 | CSV (BOM, punto y coma, coma decimal), Excel y Word válidos, reporte vacío, caracteres especiales, resumen con advertencia de datos simulados |
+| `report/ReportWritersTest` | 8 | CSV (BOM, punto y coma, coma decimal, neutralización de fórmulas), Excel y Word válidos, reporte vacío, caracteres especiales, resumen con advertencia de datos simulados |
 | `viewmodel/MeasureViewModelTest` | 10 | Pantalla Medir con una caja falsa: sin conexión no hay lecturas inventadas, lecturas de la caja solo en modo caja, registrar solo con lectura estable y reciente, desconexión al volver a DEMO, simulación solo con la pantalla visible, permiso de Bluetooth |
 | `viewmodel/RecordsUiStateTest` | 3 | Filtros del historial por origen y semáforo, contadores de pendientes de sincronizar y simuladas |
-| **Total** | **80** | |
+| **Total** | **81** | |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 
@@ -51,7 +51,11 @@ npm test
 | Mediciones | 9 | Medición + alerta en una escritura; dato simulado no puede pasar por sensor; límites físicos; hora del servidor; lote y caja existentes; inmutables; lectura según el rol |
 | Alertas | 4 | Requieren su medición, ID `medicion-tipo`, tipo y estado válidos; solo encargado/admin las atienden |
 | Rangos | 2 | Solo el admin guarda rangos coherentes; todos los usuarios activos los leen |
-| **Total** | **26** | |
+| Seguridad: nadie borra datos | 6 | Borrado con cada rol, sin sesión, con cuenta desactivada y borrado disfrazado (ver [seguridad.md](seguridad.md)) |
+| Seguridad: escalada de privilegios | 6 | Cambio de rol, cuentas sin perfil, administrador desactivado |
+| Seguridad: lectura de datos ajenos | 4 | Perfiles de otros, colecciones no definidas |
+| Seguridad: suplantación y datos manipulados | 8 | Nombres falsos, alertas ajenas o malformadas, campos extra |
+| **Total** | **50** | |
 
 ## 4. Resultados obtenidos
 

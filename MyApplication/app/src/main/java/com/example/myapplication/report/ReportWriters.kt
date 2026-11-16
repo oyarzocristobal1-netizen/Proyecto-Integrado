@@ -115,10 +115,23 @@ object CsvReportWriter {
         sb.append('﻿')
         sb.append(ReportData.HEADERS.joinToString(";") { escape(it) }).append("\r\n")
         data.rows.forEach { row ->
-            sb.append(ReportFormat.cells(row).joinToString(";") { escape(it) }).append("\r\n")
+            // El lote y el lechero los escriben personas: se neutralizan para que Excel no los
+            // interprete como formula (inyeccion de formulas en CSV). Los numeros no se tocan.
+            val cells = ReportFormat.cells(row).mapIndexed { i, v ->
+                if (i == LOT_COLUMN || i == MILKER_COLUMN) neutralizeFormula(v) else v
+            }
+            sb.append(cells.joinToString(";") { escape(it) }).append("\r\n")
         }
         out.write(sb.toString().toByteArray(Charsets.UTF_8))
     }
+
+    /** Un texto que empieza con = + - @ o tabulacion se prefija con comilla simple para que sea solo texto. */
+    fun neutralizeFormula(value: String): String =
+        if (value.isNotEmpty() && value[0] in FORMULA_STARTS) "'$value" else value
+
+    private const val LOT_COLUMN = 1
+    private const val MILKER_COLUMN = 2
+    private const val FORMULA_STARTS = "=+-@\t\r"
 
     private fun escape(value: String): String =
         if (value.any { it == ';' || it == '"' || it == '\n' || it == '\r' }) {

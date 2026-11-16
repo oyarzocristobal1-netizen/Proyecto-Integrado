@@ -1,0 +1,85 @@
+# Pruebas de seguridad
+
+Revisión de seguridad de la app y de las reglas de Firestore frente a errores y ataques: abuso de roles,
+borrado (por error o a propósito), suplantación y datos manipulados. Cada amenaza tiene su prueba y su estado.
+
+**Cómo se probó.** El atacante se modela como alguien que usa su propia cuenta y las claves públicas de
+`google-services.json` para hablar directo con Firestore, sin pasar por la app. Por eso lo que importa son
+las **reglas del servidor** (la app solo oculta botones). Las pruebas automáticas se ejecutan con el
+emulador: `cd firebase/tests && npm test`.
+
+## 1. Hallazgos de la revisión y correcciones
+
+| # | Hallazgo | Riesgo | Corrección | Cómo se verifica |
+|---|---|---|---|---|
+| H1 | `allowBackup="true"` con reglas de ejemplo: Android respaldaba la caché local (mediciones y datos de personas) | Medio | `allowBackup="false"` y exclusión total en `data_extraction_rules.xml` | Revisar el manifiesto final (prueba SM-13) |
+| H2 | El CSV no neutralizaba textos que empiezan con `=`, `+`, `-` o `@`; un lote llamado `=HYPERLINK(...)` se ejecutaría como fórmula al abrir el reporte en Excel | Medio | `CsvReportWriter.neutralizeFormula` antepone `'` en lote y lechero (los números no se tocan) | Prueba unitaria `csvNeutralizaFormulasEscritasEnLoteOLechero` y SM-12 |
+| H3 | `calibraciones` permitía al administrador **borrar** (la regla era `write`), contradiciendo "nada se borra" | Bajo | `delete: if false` explícito; también en `configuracion` | Pruebas de borrado (grupo "nadie borra datos") |
+| H4 | Las reglas no validaban `nombreLechero`, `nombreCreador`, `mensaje`, `idLote` ni el contenido de `resultado` en alertas y mediciones: se podía atribuir un registro a otra persona o guardar textos enormes | Medio | Nuevas validaciones: el nombre debe ser el del perfil de quien escribe, textos con largo máximo, `resultado` solo con `estado` y `titulo`, y la alerta debe tener el mismo lote que su medición | Grupo "suplantación y datos manipulados" |
+
+Revisado sin hallazgos: `google-services.json` no está en el repositorio ni en su historial; no hay
+llamadas a `Log` con datos; el `FileProvider` solo expone `cache/reportes/` y no es exportado; solo la
+actividad principal está exportada; los permisos son los mínimos; los errores de inicio de sesión son
+genéricos ("Correo o contraseña incorrectos.") y no revelan si el correo existe; Excel y Word no sufren la
+inyección de fórmulas (los textos van como cadenas).
+
+> Importante: H4 cambia las reglas. Antes de desplegarlas, todos los teléfonos deben tener la versión actual
+> de la app, y **todos los perfiles de `usuarios` deben tener el campo `nombre`** (la app guarda ese nombre
+> en cada registro y las reglas lo comparan).
+
+## 2. Matriz de amenazas y pruebas automáticas (reglas, emulador)
+
+| Amenaza | Prueba | Resultado esperado |
+|---|---|---|
+| Borrado por error o a propósito (admin, encargado o lechero) | `nadie borra datos`: intenta borrar un documento de cada una de las 7 colecciones con cada rol | Todo rechazado (21 intentos) |
+| Borrar sin sesión, con correo sin verificar o con cuenta desactivada | Mismo intento con esas tres identidades | Rechazado |
+| Borrado disfrazado (vaciar campos, sobrescribir, borrar en lote) | `deleteField`, `setDoc` sobre una medición existente, `batch.delete` | Rechazado |
+| Un lechero se sube el rol o se reactiva solo | `escalada de privilegios` | Rechazado |
+| Un encargado crea cuentas, cambia roles o reactiva a otros | Idem | Rechazado |
+| Registrarse y entrar sin que el administrador cree el perfil | Cuenta verificada "fantasma" intenta leer y escribir | Rechazado todo |
+| Administrador desactivado o con correo sin verificar | Intenta crear cuentas, cambiar roles y rangos | Rechazado |
+| Encargado o lechero tocan dispositivos, calibraciones o rangos | Escrituras y lecturas | Rechazado |
+| Encargado desactivado atiende alertas o edita lotes | Escrituras | Rechazado |
+| Ver datos de otras personas (perfiles, listas de usuarios) | `lectura de datos ajenos` | Rechazado salvo el propio perfil y el administrador |
+| Colección inventada (`secretos`) | Lectura y escritura como administrador | Rechazado (denegado por defecto) |
+| Atribuir un registro a otra persona | Nombre falso en medición, lote y alerta | Rechazado |
+| Alerta falsa sobre la medición de otra persona | Un lechero crea alerta sobre una medición ajena | Rechazado |
+| Sobrescribir o reabrir una alerta; cambiar su valor | Lechero sobrescribe; encargado reabre o cambia valor | Rechazado |
+| Alertas con lote falso, mensaje gigante, vacío o de tipo incorrecto, valor absurdo | 6 variantes | Rechazado |
+| Mediciones con campos extra, `resultado` manipulado o textos enormes | 6 variantes | Rechazado |
+| Editar quién creó un lote o su fecha | Encargado | Rechazado |
+| Control (evita falsos positivos) | Medición y alerta legítimas con las reglas nuevas | Aceptado |
+
+Las 26 pruebas originales siguen vigentes (permisos, límites físicos, hora del servidor, simulado ≠ sensor,
+inmutabilidad). Con estas, el archivo tiene 50 pruebas de reglas.
+
+## 3. Pruebas manuales de seguridad en el teléfono
+
+Se necesitan 2 teléfonos o 2 cuentas (una de administrador y una de lechero).
+
+| # | Prueba | Resultado esperado |
+|---|---|---|
+| SM-01 | Lechero: revisar Más | No aparecen Lotes, Reportes, Rangos, Usuarios ni código de la caja |
+| SM-02 | Dos lecheros registran mediciones; cada uno abre Historial | Cada uno ve solo las suyas |
+| SM-03 | El administrador desactiva a un lechero con la sesión abierta; el lechero intenta registrar | Se rechaza con un mensaje claro, no se guarda y no puede volver a ingresar |
+| SM-04 | El administrador cambia el rol de un lechero a encargado | Los permisos del servidor cambian de inmediato; la app los refleja al reingresar |
+| SM-05 | Crear una cuenta y no verificar el correo; intentar ingresar | No entra y la app avisa que falta verificar |
+| SM-06 | Crear un usuario con contraseña de menos de 10 caracteres | Se rechaza |
+| SM-07 | 6 contraseñas incorrectas seguidas | Mensaje genérico; Firebase puede bloquear temporalmente |
+| SM-08 | Ingresar con correo inexistente y con correo real y contraseña mala | Mismo mensaje en ambos casos |
+| SM-09 | Recorrer todas las pantallas buscando cómo borrar algo | No existe ninguna opción de eliminar |
+| SM-10 | Desactivar cuenta, marcar alerta atendida y cerrar sesión con pendientes | Cada acción pide confirmación |
+| SM-11 | Tocar Registrar dos veces seguidas | Una sola medición ("Esta lectura ya fue registrada") |
+| SM-12 | Crear el lote `=1+1`, registrar una medición, exportar CSV y abrir en Excel | El lote aparece como texto `'=1+1`, no calcula |
+| SM-13 | Compilar y revisar `app/build/intermediates/merged_manifests/debug/.../AndroidManifest.xml` | Contiene `android:allowBackup="false"` |
+| SM-14 | Generar dos reportes seguidos | Solo queda el último en la carpeta de reportes; se comparte por el selector de Android |
+
+## 4. Riesgos que quedan
+
+| Riesgo | Por qué queda | Mitigación recomendada |
+|---|---|---|
+| Un lechero con cuenta válida puede enviar muchas escrituras (consumo del plan gratuito) | Las reglas no limitan la frecuencia | Presupuesto y alertas de cuota en Firebase; desactivar la cuenta |
+| Borrado desde la consola de Firebase por alguien con acceso al proyecto | Las reglas no aplican a la consola | Pocos propietarios del proyecto y copias de seguridad programadas de Firestore |
+| Al cerrar sesión no se limpia la caché local de Firestore | La app no llama a `clearPersistence` | Las consultas de la app están filtradas por rol; considerar limpiar la caché al cerrar sesión |
+| Política de contraseñas en el servidor | La regla de 10 caracteres está en la app; el servidor de Firebase acepta 6 | Activar la política de contraseñas en Authentication; sin perfil creado por el administrador la cuenta no accede a nada |
+| El enlace Bluetooth no autentica a la caja | Solo emparejamiento | Revisar al definir el hardware definitivo |

@@ -26,6 +26,9 @@ service cloud.firestore {
     function existeDespues(col, id) {
       return existsAfter(/databases/$(db)/documents/$(col)/$(id));
     }
+    // El nombre que se guarda en un registro debe ser el del perfil de quien escribe (no se puede
+    // atribuir un registro a otra persona cambiando el texto).
+    function esMiNombre(v) { return v is string && v == perfil().nombre; }
     function texto(v, maximo) { return v is string && v.size() > 0 && v.size() <= maximo; }
     function numeroEntre(v, minimo, maximo) { return v is number && v >= minimo && v <= maximo; }
     function sensoresValidos(s) {
@@ -77,6 +80,7 @@ service cloud.firestore {
       allow create: if activo()
         && request.resource.data.keys().hasOnly(['estanque', 'fecha', 'creadoPor', 'nombreCreador', 'observacion'])
         && request.resource.data.creadoPor == request.auth.uid
+        && esMiNombre(request.resource.data.nombreCreador)
         && texto(request.resource.data.estanque, 40)
         && request.resource.data.fecha is timestamp
         && request.resource.data.fecha <= request.time + duration.value(5, 'm')
@@ -98,7 +102,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['idDispositivo', 'idLote', 'uidLechero', 'nombreLechero',
              'fechaHora', 'registradoEn', 'origen', 'sensores', 'resultado'])
         && request.resource.data.uidLechero == request.auth.uid
-        && request.resource.data.nombreLechero is string
+        && esMiNombre(request.resource.data.nombreLechero)
         // Origen: los datos simulados (modo DEMO) solo se guardan con el dispositivo "simulador"
         && ((request.resource.data.origen == 'simulado' && request.resource.data.idDispositivo == 'simulador')
             || (request.resource.data.origen == 'sensor' && request.resource.data.idDispositivo != 'simulador'))
@@ -108,7 +112,10 @@ service cloud.firestore {
         && request.resource.data.fechaHora <= request.time + duration.value(2, 'm')
         && request.resource.data.fechaHora >= request.time - duration.value(7, 'd')
         && sensoresValidos(request.resource.data.sensores)
+        && request.resource.data.resultado is map
+        && request.resource.data.resultado.keys().hasOnly(['estado', 'titulo'])
         && request.resource.data.resultado.estado in ['verde', 'ambar', 'rojo']
+        && texto(request.resource.data.resultado.titulo, 80)
         && existeDespues('lotes', request.resource.data.idLote)
         && existeDespues('dispositivos', request.resource.data.idDispositivo);
       allow update, delete: if false;          // mediciones inmutables
@@ -125,7 +132,10 @@ service cloud.firestore {
         && request.resource.data.tipo in ['temperatura', 'ph', 'conductividad', 'turbidez']
         && request.resource.data.severidad in ['media', 'alta']
         && request.resource.data.atendida == false
-        && request.resource.data.valor is number
+        && numeroEntre(request.resource.data.valor, -5, 100)
+        && texto(request.resource.data.mensaje, 200)
+        && esMiNombre(request.resource.data.nombreLechero)
+        && request.resource.data.idLote == getAfter(/databases/$(db)/documents/mediciones/$(request.resource.data.idMedicion)).data.idLote
         && request.resource.data.origen in ['simulado', 'sensor']
         && request.resource.data.fecha is timestamp
         && existeDespues('mediciones', request.resource.data.idMedicion)
@@ -139,10 +149,15 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------ administracion
-    match /calibraciones/{id} { allow read, write: if esAdmin(); }
+    match /calibraciones/{id} {
+      allow read: if esAdmin();
+      allow create, update: if esAdmin();
+      allow delete: if false;
+    }
     match /configuracion/{id} {
       allow read: if activo();
-      allow write: if esAdmin() && id == 'rangos' && rangosValidos(request.resource.data);
+      allow create, update: if esAdmin() && id == 'rangos' && rangosValidos(request.resource.data);
+      allow delete: if false;
     }
     // Todo lo demas queda denegado por defecto
   }

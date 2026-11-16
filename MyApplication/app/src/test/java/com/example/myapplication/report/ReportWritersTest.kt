@@ -73,6 +73,20 @@ class ReportWritersTest {
     }
 
     @Test
+    fun csvNeutralizaFormulasEscritasEnLoteOLechero() {
+        val ataque = ReportRow(now, "=HYPERLINK(\"http://malo.cl\")", "+cmd|' /C calc'!A0", -1.5, 6.7, 4.8, 85.0, "verde", simulated = false)
+        val out = ByteArrayOutputStream()
+        CsvReportWriter.write(data(listOf(ataque)), out)
+        val line = out.toByteArray().toString(Charsets.UTF_8).removePrefix("\uFEFF").split("\r\n")[1]
+        assertTrue(line.contains("'=HYPERLINK"))
+        assertTrue(line.contains("'+cmd"))
+        // Los numeros negativos (temperatura bajo cero) no se alteran
+        assertTrue(line.contains(";-1,5;"))
+        assertEquals("Estanque 1", CsvReportWriter.neutralizeFormula("Estanque 1"))
+        assertEquals("'@usuario", CsvReportWriter.neutralizeFormula("@usuario"))
+    }
+
+    @Test
     fun xlsxEsUnArchivoExcelValido() {
         val out = ByteArrayOutputStream()
         XlsxReportWriter.write(data(listOf(simulada, real)), out)
