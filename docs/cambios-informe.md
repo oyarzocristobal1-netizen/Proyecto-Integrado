@@ -25,7 +25,7 @@ las secciones correspondientes del informe.
 
 ## Pruebas (sección de validación)
 
-- 80 pruebas unitarias automáticas y 26 pruebas de reglas de Firestore (detalle en [pruebas.md](pruebas.md)).
+- 81 pruebas unitarias automáticas y 50 pruebas de reglas de Firestore (detalle en [pruebas.md](pruebas.md)).
 - Pruebas con hardware pendientes hasta contar con la caja de sensores.
 
 ## Pendiente o no implementado
