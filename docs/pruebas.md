@@ -48,7 +48,7 @@ npm test
 | Sesión y cuenta | 4 | Sin sesión, correo sin verificar o cuenta desactivada no leen datos |
 | Usuarios | 4 | Cada uno lee su perfil; solo el admin crea o edita cuentas válidas; no puede quitarse su rol; nada se borra |
 | Lotes | 3 | Creación con formato válido y a nombre propio; solo encargado/admin editan estanque y observación |
-| Mediciones | 8 | Medición + alerta en una escritura; dato simulado no puede pasar por sensor; límites físicos; hora del servidor; lote y caja existentes; inmutables; lectura según el rol |
+| Mediciones | 9 | Medición + alerta en una escritura; dato simulado no puede pasar por sensor; límites físicos; hora del servidor; lote y caja existentes; inmutables; lectura según el rol |
 | Alertas | 4 | Requieren su medición, ID `medicion-tipo`, tipo y estado válidos; solo encargado/admin las atienden |
 | Rangos | 2 | Solo el admin guarda rangos coherentes; todos los usuarios activos los leen |
 | **Total** | **26** | |
@@ -61,10 +61,10 @@ npm test
 | 10 pruebas de `MeasureViewModelTest` y 3 de `RecordsUiStateTest` | 13 correctas | Mismo entorno, con dobles mínimos de `ViewModel` y corrutinas |
 | Sintaxis de `firestore.rules` | Válida | Validador de reglas de Firebase |
 | 80 pruebas con `gradlew test` | **Pendiente** | Computador del equipo |
-| 26 pruebas de reglas con el emulador | **Pendiente** | Computador del equipo (el emulador no se pudo descargar en el entorno de desarrollo) |
-| Compilación de la app y prueba en teléfono | **Pendiente** | Android Studio del equipo |
+| 26 pruebas de reglas con el emulador (`npm test`) | 26 correctas, 0 fallidas | Computador del equipo, 16-11-2026 |
+| Compilación de la app y prueba en teléfono | Correcta (app instalada y usada en modo DEMO) | Android Studio y teléfono del equipo |
 
-Actualizar esta tabla con los resultados de `gradlew test` y `npm test` del equipo.
+Falta agregar el resultado de `gradlew test` del equipo.
 
 ## 5. Pruebas manuales en el teléfono (modo DEMO)
 
