@@ -33,7 +33,6 @@ inyección de fórmulas (los textos van como cadenas).
 |---|---|---|
 | Borrado por error o a propósito (encargado o lechero) | `eliminar de verdad solo lo hace el administrador`: intenta borrar un documento de cada una de las 8 colecciones | Todo rechazado (16 intentos) |
 | Borrar con la sesión del administrador sin verificar, desactivada o sin sesión | Mismo intento con 4 identidades | Rechazado |
-| Borrar sin sesión, con correo sin verificar o con cuenta desactivada | Mismo intento con esas tres identidades | Rechazado |
 | Borrado disfrazado (vaciar campos, sobrescribir, borrar en lote) | `deleteField`, `setDoc` sobre una medición existente, `batch.delete` | Rechazado |
 | Un lechero se sube el rol o se reactiva solo | `escalada de privilegios` | Rechazado |
 | Un encargado crea cuentas, cambia roles o reactiva a otros | Idem | Rechazado |
