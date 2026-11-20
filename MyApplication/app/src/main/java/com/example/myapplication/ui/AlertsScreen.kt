@@ -42,6 +42,7 @@ import com.example.myapplication.data.MilkAlert
 import com.example.myapplication.model.AlertSeverity
 import com.example.myapplication.model.CrudRules
 import com.example.myapplication.model.UserSession
+import com.example.myapplication.ui.components.ConfirmDialog
 import com.example.myapplication.ui.components.TextInputDialog
 import com.example.myapplication.ui.components.EmptyState
 import com.example.myapplication.ui.components.ScreenTitle
@@ -63,6 +64,7 @@ fun AlertsScreen(
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
     var attending by remember { mutableStateOf<MilkAlert?>(null) }
     var editingNote by remember { mutableStateOf<MilkAlert?>(null) }
+    var deleting by remember { mutableStateOf<MilkAlert?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -125,12 +127,29 @@ fun AlertsScreen(
                         dateText = dateFormat.format(alert.date),
                         canAttend = session.role.canAttendAlerts,
                         dateFormat = dateFormat,
+                        canDelete = session.role.canDeleteRecords,
                         onAttend = { attending = alert },
-                        onEditNote = { editingNote = alert }
+                        onEditNote = { editingNote = alert },
+                        onDelete = { deleting = alert }
                     )
                 }
             }
         }
+    }
+
+    deleting?.let { alert ->
+        ConfirmDialog(
+            title = "¿Eliminar la alerta?",
+            text = "\"${alert.message}\"\n\nSe elimina solo la alerta; la medición se conserva. No se puede deshacer y " +
+                "queda anotado en la bitácora.",
+            confirmLabel = "Eliminar",
+            destructive = true,
+            onConfirm = {
+                viewModel.deleteAlert(alert)
+                deleting = null
+            },
+            onDismiss = { deleting = null }
+        )
     }
 
     attending?.let { alert ->
@@ -174,9 +193,11 @@ private fun AlertRow(
     lotName: String,
     dateText: String,
     canAttend: Boolean,
+    canDelete: Boolean,
     dateFormat: SimpleDateFormat,
     onAttend: () -> Unit,
-    onEditNote: () -> Unit
+    onEditNote: () -> Unit,
+    onDelete: () -> Unit
 ) {
     val status = AppTheme.status
     val (container, content) = when {
@@ -229,6 +250,11 @@ private fun AlertRow(
                 }
                 if (alert.attended && canAttend) {
                     TextButton(onClick = onEditNote) { Text(if (alert.note.isBlank()) "Agregar nota" else "Editar nota") }
+                }
+            }
+            if (canDelete) {
+                TextButton(onClick = onDelete, modifier = Modifier.align(Alignment.End)) {
+                    Text("Eliminar", color = if (alert.attended) MaterialTheme.colorScheme.error else content)
                 }
             }
             if (alert.attended) {

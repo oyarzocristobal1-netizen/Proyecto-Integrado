@@ -14,7 +14,7 @@ emulador: `cd firebase/tests && npm test`.
 |---|---|---|---|---|
 | H1 | `allowBackup="true"` con reglas de ejemplo: Android respaldaba la caché local (mediciones y datos de personas) | Medio | `allowBackup="false"` y exclusión total en `data_extraction_rules.xml` | Revisar el manifiesto final (prueba SM-13) |
 | H2 | El CSV no neutralizaba textos que empiezan con `=`, `+`, `-` o `@`; un lote llamado `=HYPERLINK(...)` se ejecutaría como fórmula al abrir el reporte en Excel | Medio | `CsvReportWriter.neutralizeFormula` antepone `'` en lote y lechero (los números no se tocan) | Prueba unitaria `csvNeutralizaFormulasEscritasEnLoteOLechero` y SM-12 |
-| H3 | `calibraciones` permitía al administrador **borrar** (la regla era `write`), contradiciendo "nada se borra" | Bajo | `delete: if false` explícito; también en `configuracion` | Pruebas de borrado (grupo "nadie borra datos") |
+| H3 | `calibraciones` permitía al administrador **borrar** (la regla era `write`), contradiciendo "nada se borra" | Bajo | `delete: if false` explícito; también en `configuracion` | Pruebas de borrado (grupo "eliminar de verdad solo lo hace el administrador"). *Actualización 20-11-2026: el equipo decidió permitir que el administrador elimine registros, con bitácora; ver 2.1* |
 | H4 | Las reglas no validaban `nombreLechero`, `nombreCreador`, `mensaje`, `idLote` ni el contenido de `resultado` en alertas y mediciones: se podía atribuir un registro a otra persona o guardar textos enormes | Medio | Nuevas validaciones: el nombre debe ser el del perfil de quien escribe, textos con largo máximo, `resultado` solo con `estado` y `titulo`, y la alerta debe tener el mismo lote que su medición | Grupo "suplantación y datos manipulados" |
 
 Revisado sin hallazgos: `google-services.json` no está en el repositorio ni en su historial; no hay
@@ -31,7 +31,8 @@ inyección de fórmulas (los textos van como cadenas).
 
 | Amenaza | Prueba | Resultado esperado |
 |---|---|---|
-| Borrado por error o a propósito (admin, encargado o lechero) | `nadie borra datos`: intenta borrar un documento de cada una de las 8 colecciones con cada rol | Todo rechazado (24 intentos) |
+| Borrado por error o a propósito (encargado o lechero) | `eliminar de verdad solo lo hace el administrador`: intenta borrar un documento de cada una de las 8 colecciones | Todo rechazado (16 intentos) |
+| Borrar con la sesión del administrador sin verificar, desactivada o sin sesión | Mismo intento con 4 identidades | Rechazado |
 | Borrar sin sesión, con correo sin verificar o con cuenta desactivada | Mismo intento con esas tres identidades | Rechazado |
 | Borrado disfrazado (vaciar campos, sobrescribir, borrar en lote) | `deleteField`, `setDoc` sobre una medición existente, `batch.delete` | Rechazado |
 | Un lechero se sube el rol o se reactiva solo | `escalada de privilegios` | Rechazado |
@@ -55,17 +56,31 @@ inmutabilidad). Con estas, el archivo tiene 50 pruebas de reglas.
 
 ### 2.1 Altas, bajas lógicas y notas (CRUD ampliado)
 
-Toda baja es **lógica**: nada se borra (se mantiene la regla `delete: false` en todas las colecciones), y cada
-cambio deja quién lo hizo (con su nombre de perfil, no editable) y cuándo (hora del servidor).
+Las bajas normales son **lógicas** (desactivar, anular, cerrar) y cada cambio deja quién lo hizo (con su nombre de
+perfil, no editable) y cuándo (hora del servidor). **Eliminar de verdad** es el último recurso y lo puede hacer
+**solo el administrador** (la configuración de rangos no se puede eliminar, y nadie puede eliminar su propia cuenta).
 
 | Función | Quién | Qué guarda | Qué impiden las reglas |
 |---|---|---|---|
-| Estanques (catálogo) | Encargado y admin | `nombre`, `activo`, `creadoPor` | Borrar; cambiar otro campo; nombre vacío o de más de 40 caracteres |
+| Estanques (catálogo) | Encargado y admin | `nombre`, `activo`, `creadoPor` | Borrar sin ser administrador; cambiar otro campo; nombre vacío o de más de 40 caracteres |
 | Cerrar / reabrir lote | Encargado y admin | `cerrado`, `estadoPor`, `estadoEn` | Que lo haga un lechero; firmar con otro nombre; hora falsa; **medir en un lote cerrado** |
 | Anular medición | Encargado y admin | `anulada`, `motivoAnulacion` (3–200), `anuladaPor`, `anuladaEn` | Cambiar los valores medidos; anular sin motivo; desanular; anular dos veces |
 | Atender alerta con nota | Encargado y admin | `atendida`, `nota` (≤300, opcional), `atendidaPor`, `atendidaEn` | Reabrir la alerta; cambiar su valor o mensaje; después solo se edita la nota |
-| Dispositivos | Solo admin | `nombre`, `ubicacion`, `estado` | Borrar; campos extra |
+| Dispositivos | Solo admin | `nombre`, `ubicacion`, `estado` | Borrar sin ser administrador; campos extra |
 | Calibraciones | Solo admin | `idDispositivo`, `fecha`, `realizadaPor`, `parametro`, `nota` | Calibrar un dispositivo inexistente; fecha del teléfono; firmar con otro nombre; reescribirla (solo la nota) |
+
+**Bitácora de eliminaciones** (`eliminaciones`): cada vez que el administrador elimina algo, la app anota en la misma
+escritura el tipo, el ID, una descripción, quién lo hizo (nombre de su perfil) y cuándo (hora del servidor). Solo el
+administrador la lee y **nadie puede editarla ni borrarla**. Al eliminar un lote se eliminan también sus mediciones y
+alertas; una medición, sus alertas; un dispositivo, sus calibraciones.
+
+| Eliminar… | Qué pasa con lo asociado | Límite conocido |
+|---|---|---|
+| Estanque | Nada: los lotes guardan el nombre como texto | — |
+| Lote | Se eliminan sus mediciones y alertas (por grupos de 400 escrituras) | Necesita conexión; si falla a la mitad se puede reintentar |
+| Medición | Se eliminan sus alertas | — |
+| Dispositivo | Se eliminan sus calibraciones; las mediciones conservan su ID | Sin el dispositivo no se pueden registrar mediciones nuevas con él (si es el simulador o la caja, la app los vuelve a crear al entrar el administrador) |
+| Cuenta | Se elimina el perfil: pierde el acceso. Las mediciones se conservan con su nombre | La cuenta de acceso sigue en Firebase Authentication: se borra desde la consola |
 
 Las mediciones anuladas siguen en el historial (marcadas ANULADA, con motivo y responsable) pero no cuentan en el
 análisis, el panel ni los reportes. Los documentos antiguos no cambian: todos los campos nuevos son opcionales
@@ -100,4 +115,5 @@ Se necesitan 2 teléfonos o 2 cuentas (una de administrador y una de lechero).
 | Borrado desde la consola de Firebase por alguien con acceso al proyecto | Las reglas no aplican a la consola | Pocos propietarios del proyecto y copias de seguridad programadas de Firestore |
 | Al cerrar sesión no se limpia la caché local de Firestore | La app no llama a `clearPersistence` | Las consultas de la app están filtradas por rol; considerar limpiar la caché al cerrar sesión |
 | Política de contraseñas en el servidor | La regla de 10 caracteres está en la app; el servidor de Firebase acepta 6 | Activar la política de contraseñas en Authentication; sin perfil creado por el administrador la cuenta no accede a nada |
+| Un administrador puede eliminar registros (incluido el historial de un lote) | Decisión del equipo para poder corregir errores; las reglas no obligan a anotar la bitácora (la app lo hace siempre, pero una escritura hecha desde otra herramienta podría omitirla) | Pocos administradores; copias de seguridad programadas de Firestore; revisar la bitácora |
 | El enlace Bluetooth no autentica a la caja | Solo emparejamiento | Revisar al definir el hardware definitivo |

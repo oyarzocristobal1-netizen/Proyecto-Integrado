@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.myapplication.data.Calibration
+import com.example.myapplication.data.DeletionRepository
 import com.example.myapplication.data.Device
 import com.example.myapplication.data.DeviceResult
 import com.example.myapplication.data.DevicesRepository
@@ -41,7 +42,10 @@ data class DevicesUiState(
  * Los dispositivos se desactivan, no se borran; cada calibracion queda con fecha del servidor y responsable.
  * Las escrituras requieren conexion: son tareas de administracion, no de sala de ordeña.
  */
-class DevicesViewModel(private val repository: DevicesRepository) : ViewModel() {
+class DevicesViewModel(
+    private val repository: DevicesRepository,
+    private val deletions: DeletionRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(DevicesUiState())
     val state: StateFlow<DevicesUiState> = _state.asStateFlow()
@@ -143,6 +147,31 @@ class DevicesViewModel(private val repository: DevicesRepository) : ViewModel() 
         }
     }
 
+    /** Elimina el dispositivo con sus calibraciones (solo administrador; queda en la bitacora). */
+    fun deleteDevice(device: Device, session: UserSession, onDone: () -> Unit) {
+        if (!session.role.canDeleteRecords) {
+            showMessage("Solo el administrador puede eliminar registros.")
+            return
+        }
+        execute(failure = "No se pudo eliminar el dispositivo") {
+            val count = deletions.deleteDevice(device, session)
+            selectDevice(null)
+            showMessage("Dispositivo eliminado con $count calibración(es).")
+            onDone()
+        }
+    }
+
+    fun deleteCalibration(calibration: Calibration, deviceName: String, session: UserSession) {
+        if (!session.role.canDeleteRecords) {
+            showMessage("Solo el administrador puede eliminar registros.")
+            return
+        }
+        execute(failure = "No se pudo eliminar la calibración") {
+            deletions.deleteCalibration(calibration, deviceName, session)
+            showMessage("Calibración eliminada.")
+        }
+    }
+
     private fun validateDevice(name: String, location: String): String? =
         CrudRules.validateDeviceName(name) ?: CrudRules.validateDeviceLocation(location)
 
@@ -185,7 +214,7 @@ class DevicesViewModel(private val repository: DevicesRepository) : ViewModel() 
         private const val WRITE_TIMEOUT_MS = 15_000L
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer { DevicesViewModel(appContainer().devicesRepository) }
+            initializer { DevicesViewModel(appContainer().devicesRepository, appContainer().deletionRepository) }
         }
     }
 }

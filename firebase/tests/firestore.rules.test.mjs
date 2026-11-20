@@ -135,8 +135,10 @@ describe('usuarios', () => {
     await assertFails(updateDoc(doc(como('admin'), 'usuarios', 'admin'), { activo: false }));
     await assertSucceeds(updateDoc(doc(como('admin'), 'usuarios', 'admin'), { nombre: 'Admin Fundo' }));
   });
-  test('las cuentas no se borran', async () => {
-    await assertFails(deleteDoc(doc(como('admin'), 'usuarios', 'lechero2')));
+  test('solo el administrador elimina un perfil, y nunca el suyo', async () => {
+    await assertFails(deleteDoc(doc(como('encargado'), 'usuarios', 'lechero2')));
+    await assertFails(deleteDoc(doc(como('admin'), 'usuarios', 'admin')));
+    await assertSucceeds(deleteDoc(doc(como('admin'), 'usuarios', 'lechero2')));
   });
 });
 
@@ -203,9 +205,9 @@ describe('mediciones', () => {
   test('cuenta desactivada no registra', async () => {
     await assertFails(setDoc(doc(como('inactivo'), 'mediciones', 'v1'), medicion({ uidLechero: 'inactivo' })));
   });
-  test('las mediciones son inmutables', async () => {
+  test('los valores medidos no se pueden cambiar (ni el administrador)', async () => {
     await assertFails(updateDoc(doc(como('admin'), 'mediciones', 'existente'), { 'sensores.ph': 6.6 }));
-    await assertFails(deleteDoc(doc(como('admin'), 'mediciones', 'existente')));
+    await assertFails(deleteDoc(doc(como('encargado'), 'mediciones', 'existente')));
   });
   test('el lechero solo lee lo propio; el encargado lee todo', async () => {
     await assertSucceeds(getDocs(query(collection(como('lechero'), 'mediciones'), where('uidLechero', '==', 'lechero'))));
@@ -257,6 +259,16 @@ describe('rangos de calidad', () => {
 // PRUEBAS DE SEGURIDAD: ataques y errores (borrado, roles, suplantacion, datos mal formados)
 // ======================================================================================
 
+/** Anotacion de una eliminacion en la bitacora (la hace el administrador). */
+const baja = (cambios = {}) => ({
+  tipo: 'medicion',
+  idElemento: 'existente',
+  descripcion: 'Medicion de prueba',
+  eliminadoPor: 'admin',
+  fecha: serverTimestamp(),
+  ...cambios,
+});
+
 /** Todos los documentos que existen en las pruebas, para intentar borrarlos. */
 const DOCUMENTOS = [
   ['usuarios', 'lechero2'],
@@ -269,8 +281,8 @@ const DOCUMENTOS = [
   ['configuracion', 'rangos'],
 ];
 
-describe('seguridad: nadie borra datos (por error o a proposito)', () => {
-  for (const uid of ['admin', 'encargado', 'lechero']) {
+describe('seguridad: eliminar de verdad solo lo hace el administrador', () => {
+  for (const uid of ['encargado', 'lechero']) {
     test(`${uid} no puede borrar ningun documento de ninguna coleccion`, async () => {
       const db = como(uid);
       for (const [col, id] of DOCUMENTOS) {
@@ -279,26 +291,63 @@ describe('seguridad: nadie borra datos (por error o a proposito)', () => {
     });
   }
   test('sin sesion, con correo sin verificar o con cuenta desactivada tampoco', async () => {
-    const dbs = [env.unauthenticatedContext().firestore(), como('admin', false), como('adminInactivo')];
+    const dbs = [env.unauthenticatedContext().firestore(), como('admin', false), como('adminInactivo'), como('encargadoInactivo')];
     for (const db of dbs) {
       for (const [col, id] of DOCUMENTOS) {
         await assertFails(deleteDoc(doc(db, col, id)));
       }
     }
   });
-  test('borrado disfrazado: vaciar campos, sobrescribir o borrar en lote tambien falla', async () => {
+  test('el administrador elimina cualquier documento, salvo la configuracion de rangos', async () => {
+    const db = como('admin');
+    for (const [col, id] of DOCUMENTOS.filter(([col]) => col !== 'configuracion')) {
+      await assertSucceeds(deleteDoc(doc(db, col, id)));
+    }
+    await assertFails(deleteDoc(doc(db, 'configuracion', 'rangos')));
+  });
+  test('borrado disfrazado: vaciar campos, sobrescribir o borrar en lote sin ser administrador falla', async () => {
     const admin = como('admin');
     await assertFails(updateDoc(doc(admin, 'mediciones', 'existente'), { sensores: deleteField() }));
     await assertFails(setDoc(doc(admin, 'mediciones', 'existente'), medicion()));
     await assertFails(updateDoc(doc(admin, 'usuarios', 'lechero2'), { rol: deleteField() }));
-    const lote = writeBatch(admin);
-    lote.delete(doc(admin, 'mediciones', 'existente'));
-    lote.delete(doc(admin, 'alertas', 'existente-ph'));
+    const encargado = como('encargado');
+    const lote = writeBatch(encargado);
+    lote.delete(doc(encargado, 'mediciones', 'existente'));
+    lote.delete(doc(encargado, 'alertas', 'existente-ph'));
     await assertFails(lote.commit());
   });
-  test('una cuenta se desactiva (con el administrador) pero no se borra', async () => {
-    await assertSucceeds(updateDoc(doc(como('admin'), 'usuarios', 'lechero2'), { activo: false }));
-    await assertFails(deleteDoc(doc(como('admin'), 'usuarios', 'lechero2')));
+  test('el administrador elimina una medicion con sus alertas y la anota en la bitacora, todo junto', async () => {
+    const db = como('admin');
+    const lote = writeBatch(db);
+    lote.delete(doc(db, 'mediciones', 'existente'));
+    lote.delete(doc(db, 'alertas', 'existente-ph'));
+    lote.set(doc(db, 'eliminaciones', 'e1'), baja());
+    await assertSucceeds(lote.commit());
+  });
+});
+
+describe('bitacora de eliminaciones', () => {
+  test('solo el administrador anota y lee; con su nombre, hora del servidor y datos validos', async () => {
+    await assertSucceeds(setDoc(doc(como('admin'), 'eliminaciones', 'a'), baja()));
+    await assertFails(setDoc(doc(como('encargado'), 'eliminaciones', 'b'), baja({ eliminadoPor: 'encargado' })));
+    await assertFails(setDoc(doc(como('lechero'), 'eliminaciones', 'c'), baja({ eliminadoPor: 'lechero' })));
+    await assertSucceeds(getDoc(doc(como('admin'), 'eliminaciones', 'a')));
+    await assertFails(getDoc(doc(como('encargado'), 'eliminaciones', 'a')));
+  });
+  test('rechaza nombre ajeno, hora falsa, tipo desconocido, campos extra o faltantes', async () => {
+    const db = como('admin');
+    await assertFails(setDoc(doc(db, 'eliminaciones', 'd'), baja({ eliminadoPor: 'encargado' })));
+    await assertFails(setDoc(doc(db, 'eliminaciones', 'e'), baja({ fecha: Timestamp.now() })));
+    await assertFails(setDoc(doc(db, 'eliminaciones', 'f'), baja({ tipo: 'configuracion' })));
+    await assertFails(setDoc(doc(db, 'eliminaciones', 'g'), baja({ extra: 1 })));
+    await assertFails(setDoc(doc(db, 'eliminaciones', 'h'), baja({ descripcion: '' })));
+  });
+  test('la bitacora no se edita ni se borra, ni siquiera el administrador', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'eliminaciones', 'x'), { tipo: 'lote', idElemento: 'l', descripcion: 'd', eliminadoPor: 'admin', fecha: Timestamp.now() });
+    });
+    await assertFails(updateDoc(doc(como('admin'), 'eliminaciones', 'x'), { descripcion: 'otra' }));
+    await assertFails(deleteDoc(doc(como('admin'), 'eliminaciones', 'x')));
   });
 });
 
@@ -530,9 +579,8 @@ describe('anular mediciones (baja logica)', () => {
     await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), anular('encargado', { motivoAnulacion: 'Otro motivo' })));
     await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), { anulada: false }));
   });
-  test('no se crea una medicion ya anulada y sigue sin poder borrarse', async () => {
+  test('no se crea una medicion ya anulada', async () => {
     await assertFails(setDoc(doc(como('lechero'), 'mediciones', 'nueva'), medicion({ anulada: true })));
-    await assertFails(deleteDoc(doc(como('admin'), 'mediciones', 'existente')));
   });
 });
 

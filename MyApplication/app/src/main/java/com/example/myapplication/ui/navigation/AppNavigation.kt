@@ -252,12 +252,20 @@ private fun MainScaffold(
             // Pantallas segun el rol (Tabla 31): si el rol no tiene permiso, la ruta no existe.
             if (role.canEditLots) {
                 composable(Routes.LOTS) {
-                    LotsScreen(viewModel = recordsViewModel, onBack = { navController.popBackStack() })
+                    LotsScreen(
+                        viewModel = recordsViewModel,
+                        canDelete = role.canDeleteRecords,
+                        onBack = { navController.popBackStack() }
+                    )
                 }
             }
             if (role.canManageTanks) {
                 composable(Routes.TANKS) {
-                    TanksScreen(viewModel = recordsViewModel, onBack = { navController.popBackStack() })
+                    TanksScreen(
+                        viewModel = recordsViewModel,
+                        canDelete = role.canDeleteRecords,
+                        onBack = { navController.popBackStack() }
+                    )
                 }
             }
             if (role.canCalibrateDevice) {

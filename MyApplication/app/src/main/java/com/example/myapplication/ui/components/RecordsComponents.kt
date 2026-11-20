@@ -280,7 +280,9 @@ fun SavedMeasurementRow(
     lotName: String,
     showMilker: Boolean,
     /** Si se entrega, se muestra el boton "Anular" (solo encargado y administrador). */
-    onAnnul: (() -> Unit)? = null
+    onAnnul: (() -> Unit)? = null,
+    /** Si se entrega, se muestra "Eliminar" (solo administrador; ultimo recurso). */
+    onDelete: (() -> Unit)? = null
 ) {
     val status = AppTheme.status
     Card(
@@ -350,12 +352,20 @@ fun SavedMeasurementRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            } else if (onAnnul != null) {
-                TextButton(
-                    onClick = onAnnul,
-                    enabled = !measurement.pendingSync,
-                    modifier = Modifier.align(Alignment.End)
-                ) { Text("Anular medición", color = MaterialTheme.colorScheme.error) }
+            }
+            if ((!measurement.annulled && onAnnul != null) || onDelete != null) {
+                Row(modifier = Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (!measurement.annulled && onAnnul != null) {
+                        TextButton(onClick = onAnnul, enabled = !measurement.pendingSync) {
+                            Text("Anular", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    if (onDelete != null) {
+                        TextButton(onClick = onDelete, enabled = !measurement.pendingSync) {
+                            Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
             }
         }
     }

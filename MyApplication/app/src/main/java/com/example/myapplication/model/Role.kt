@@ -28,6 +28,9 @@ enum class Role(val id: String, val label: String) {
     /** Anular una medicion registrada por error (queda guardada, con motivo y responsable). */
     val canAnnulMeasurements: Boolean get() = this != LECHERO
 
+    /** Eliminar de verdad (ultimo recurso; queda en la bitacora). Lo normal es desactivar, anular o cerrar. */
+    val canDeleteRecords: Boolean get() = this == ADMIN
+
     /** Exportar reportes. */
     val canExportReports: Boolean get() = this != LECHERO
 

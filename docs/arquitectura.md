@@ -118,7 +118,9 @@ Simulador DEMO ─────────────────────�
 | `alertas` | `idMedicion-tipo` | `idMedicion`, `idLote`, `tipo`, `severidad`, `fecha`, `atendida`, `valor`, `mensaje`, `nombreLechero`, **`origen`** |
 | `configuracion` | `rangos` | `tempMax`, `phMin`, `phMax`, `condMin`, `condMax`, `turbMin` |
 
-Las mediciones son **inmutables** y nada se borra (trazabilidad). Reglas: `firebase/firestore.rules`;
+Los valores de una medición son **inmutables**: lo normal es anularla (queda guardada, con motivo y responsable). Eliminar de
+verdad lo puede hacer solo el administrador y queda anotado en la bitácora `eliminaciones`, que nadie puede editar ni borrar
+(trazabilidad). Reglas: `firebase/firestore.rules`;
 índices: `firebase/firestore.indexes.json`.
 
 ## 7. Integración futura con la caja (preparada, no validada)

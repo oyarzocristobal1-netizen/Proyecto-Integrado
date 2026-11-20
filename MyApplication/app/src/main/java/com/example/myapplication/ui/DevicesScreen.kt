@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material3.AlertDialog
@@ -60,6 +62,7 @@ import com.example.myapplication.model.CalibrationParameter
 import com.example.myapplication.model.CrudRules
 import com.example.myapplication.model.RecordRules
 import com.example.myapplication.model.UserSession
+import com.example.myapplication.ui.components.ConfirmDialog
 import com.example.myapplication.ui.components.EmptyState
 import com.example.myapplication.ui.components.ScreenTitle
 import com.example.myapplication.ui.components.StatusPill
@@ -88,6 +91,8 @@ fun DevicesScreen(
     var editing by remember { mutableStateOf<Device?>(null) }
     var calibrating by remember { mutableStateOf(false) }
     var editingNote by remember { mutableStateOf<Calibration?>(null) }
+    var deletingDevice by remember { mutableStateOf<Device?>(null) }
+    var deletingCalibration by remember { mutableStateOf<Calibration?>(null) }
     val selected = state.selected
 
     LaunchedEffect(Unit) { viewModel.start() }
@@ -146,8 +151,8 @@ fun DevicesScreen(
             if (selected == null) {
                 item {
                     Text(
-                        "Cajas de sensores y el simulador de la app. Un dispositivo no se borra: se desactiva " +
-                            "para que las mediciones antiguas sigan asociadas a él.",
+                        "Cajas de sensores y el simulador de la app. Lo normal es desactivar un dispositivo " +
+                            "para que las mediciones antiguas sigan asociadas a él; eliminarlo es el último recurso.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -191,6 +196,20 @@ fun DevicesScreen(
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
+                        TextButton(
+                            onClick = { deletingDevice = selected },
+                            enabled = !state.saving,
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Eliminar dispositivo", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
                 if (state.calibrationsLoading && state.calibrations.isEmpty()) {
@@ -205,7 +224,12 @@ fun DevicesScreen(
                     }
                 }
                 items(state.calibrations, key = { it.id }) { c ->
-                    CalibrationCard(c, dateFormat.format(c.date), onEditNote = { editingNote = c })
+                    CalibrationCard(
+                        c,
+                        dateFormat.format(c.date),
+                        onEditNote = { editingNote = c },
+                        onDelete = { deletingCalibration = c }
+                    )
                 }
             }
         }
@@ -237,6 +261,35 @@ fun DevicesScreen(
                 viewModel.addCalibration(selected, parameter, note, session) { calibrating = false }
             },
             onDismiss = { calibrating = false }
+        )
+    }
+    deletingDevice?.let { device ->
+        ConfirmDialog(
+            title = "¿Eliminar ${device.name}?",
+            text = "Se elimina el dispositivo y todas sus calibraciones. Las mediciones ya registradas se conservan, " +
+                "pero no se podrán registrar mediciones nuevas con este dispositivo mientras no exista. " +
+                "No se puede deshacer; queda anotado en la bitácora. Lo normal es desactivarlo.",
+            confirmLabel = "Eliminar",
+            destructive = true,
+            onConfirm = {
+                deletingDevice = null
+                viewModel.deleteDevice(device, session) {}
+            },
+            onDismiss = { deletingDevice = null }
+        )
+    }
+    deletingCalibration?.let { c ->
+        ConfirmDialog(
+            title = "¿Eliminar la calibración?",
+            text = "Se elimina el registro de calibración (${c.parameter.label}, ${dateFormat.format(c.date)}). " +
+                "No se puede deshacer; queda anotado en la bitácora.",
+            confirmLabel = "Eliminar",
+            destructive = true,
+            onConfirm = {
+                deletingCalibration = null
+                viewModel.deleteCalibration(c, selected?.name.orEmpty().ifBlank { c.deviceId }, session)
+            },
+            onDismiss = { deletingCalibration = null }
         )
     }
     editingNote?.let { c ->
@@ -294,7 +347,7 @@ private fun DeviceSummary(device: Device, lastCalibration: String?) {
 }
 
 @Composable
-private fun CalibrationCard(c: Calibration, dateText: String, onEditNote: () -> Unit) {
+private fun CalibrationCard(c: Calibration, dateText: String, onEditNote: () -> Unit, onDelete: () -> Unit) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
@@ -308,8 +361,9 @@ private fun CalibrationCard(c: Calibration, dateText: String, onEditNote: () -> 
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (c.note.isNotBlank()) Text("Nota: ${c.note}", style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = onEditNote, modifier = Modifier.align(Alignment.End)) {
-                Text(if (c.note.isBlank()) "Agregar nota" else "Editar nota")
+            Row(modifier = Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onEditNote) { Text(if (c.note.isBlank()) "Agregar nota" else "Editar nota") }
+                TextButton(onClick = onDelete) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
             }
         }
     }

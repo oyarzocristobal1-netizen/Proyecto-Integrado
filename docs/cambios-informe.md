@@ -20,7 +20,7 @@ las secciones correspondientes del informe.
 
 - Límites físicos de los sensores en la app y en las reglas del servidor.
 - Lectura estable (4 lecturas parecidas) y reciente (≤ 15 s) para poder registrar.
-- No se registra dos veces la misma lectura; mediciones inmutables; nada se borra.
+- No se registra dos veces la misma lectura; los valores medidos no se pueden cambiar; las bajas son lógicas (anular, desactivar, cerrar) y eliminar de verdad es solo del administrador, con bitácora.
 - Un dato simulado no puede guardarse como medición del sensor (regla del servidor).
 
 ## Pruebas (sección de validación)

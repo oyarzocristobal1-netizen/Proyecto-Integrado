@@ -6,11 +6,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.myapplication.data.DeletionRepository
 import com.example.myapplication.data.MIN_PASSWORD_LENGTH
 import com.example.myapplication.data.ManagedUser
 import com.example.myapplication.data.UserAdminRepository
 import com.example.myapplication.data.toUserMessage
 import com.example.myapplication.model.Role
+import com.example.myapplication.model.UserSession
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +31,10 @@ data class UserManagementUiState(
     val formError: String? = null
 )
 
-class UserManagementViewModel(private val repository: UserAdminRepository) : ViewModel() {
+class UserManagementViewModel(
+    private val repository: UserAdminRepository,
+    private val deletions: DeletionRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(UserManagementUiState())
     val state: StateFlow<UserManagementUiState> = _state.asStateFlow()
@@ -103,6 +108,32 @@ class UserManagementViewModel(private val repository: UserAdminRepository) : Vie
         }
     }
 
+    /**
+     * Elimina el perfil de una cuenta (solo administrador, nunca la propia). Pierde el acceso a la app;
+     * sus mediciones se conservan con su nombre. Lo normal es desactivarla.
+     */
+    fun deleteUser(user: ManagedUser, session: UserSession, onDone: () -> Unit) {
+        if (!session.role.canDeleteRecords) {
+            _state.update { it.copy(message = "Solo el administrador puede eliminar cuentas.") }
+            return
+        }
+        if (user.uid == session.uid) {
+            _state.update { it.copy(message = "No puedes eliminar tu propia cuenta.") }
+            return
+        }
+        _state.update { it.copy(saving = true) }
+        viewModelScope.launch {
+            try {
+                deletions.deleteUserProfile(user, session)
+                _state.update { it.copy(saving = false, message = "Cuenta de ${user.name.ifBlank { user.email }} eliminada.") }
+                onDone()
+                load()
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false, message = friendlyMessage(e)) }
+            }
+        }
+    }
+
     fun sendPasswordReset(user: ManagedUser) {
         viewModelScope.launch {
             val message = try {
@@ -133,7 +164,7 @@ class UserManagementViewModel(private val repository: UserAdminRepository) : Vie
         const val MAX_EMAIL = 120
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer { UserManagementViewModel(appContainer().userAdminRepository) }
+            initializer { UserManagementViewModel(appContainer().userAdminRepository, appContainer().deletionRepository) }
         }
     }
 }

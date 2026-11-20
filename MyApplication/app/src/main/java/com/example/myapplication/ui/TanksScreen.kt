@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -60,6 +61,8 @@ private const val TANK_NAME_MAX = 40
 @Composable
 fun TanksScreen(
     viewModel: RecordsViewModel,
+    /** Solo el administrador elimina de verdad (lo normal es desactivar). */
+    canDelete: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -67,6 +70,7 @@ fun TanksScreen(
     var creating by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<Tank?>(null) }
     var deactivating by remember { mutableStateOf<Tank?>(null) }
+    var deleting by remember { mutableStateOf<Tank?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -92,7 +96,7 @@ fun TanksScreen(
             item {
                 Text(
                     "Los estanques activos se ofrecen al elegir el lote de hoy. " +
-                        "Un estanque no se borra: se desactiva y deja de ofrecerse.",
+                        "Lo normal es desactivar un estanque (deja de ofrecerse); eliminarlo es el último recurso.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -162,6 +166,18 @@ fun TanksScreen(
                                     Text("Activar")
                                 }
                             }
+                            if (canDelete) {
+                                TextButton(onClick = { deleting = tank }, enabled = !state.saving) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         }
                     }
                 }
@@ -200,6 +216,22 @@ fun TanksScreen(
             stateKey = tank.id,
             onConfirm = { name -> viewModel.renameTank(tank, name) { renaming = null } },
             onDismiss = { renaming = null }
+        )
+    }
+
+    deleting?.let { tank ->
+        ConfirmDialog(
+            title = "¿Eliminar ${tank.name}?",
+            text = "Se elimina del catálogo. Los lotes y mediciones ya registrados no se tocan: guardan el nombre " +
+                "como texto. La eliminación queda anotada en la bitácora. Si solo quieres que no se ofrezca más, " +
+                "usa Desactivar.",
+            confirmLabel = "Eliminar",
+            destructive = true,
+            onConfirm = {
+                viewModel.deleteTank(tank)
+                deleting = null
+            },
+            onDismiss = { deleting = null }
         )
     }
 

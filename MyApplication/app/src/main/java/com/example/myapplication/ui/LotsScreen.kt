@@ -30,12 +30,15 @@ import java.util.Locale
 @Composable
 fun LotsScreen(
     viewModel: RecordsViewModel,
+    /** Solo el administrador elimina de verdad (lo normal es cerrar el lote). */
+    canDelete: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsState()
     var editing by remember { mutableStateOf<Lot?>(null) }
     var togglingClosed by remember { mutableStateOf<Lot?>(null) }
+    var deleting by remember { mutableStateOf<Lot?>(null) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
 
     Scaffold(
@@ -62,7 +65,7 @@ fun LotsScreen(
             item {
                 Text(
                     "Toca un lote para corregir el estanque, agregar una observación o cerrarlo. " +
-                        "Un lote cerrado no admite mediciones nuevas (se puede reabrir). Los lotes no se borran.",
+                        "Un lote cerrado no admite mediciones nuevas (se puede reabrir). Eliminar un lote es el último recurso (solo el administrador).",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -168,6 +171,13 @@ fun LotsScreen(
                         enabled = !state.saving,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(if (lot.closed) "Reabrir lote" else "Cerrar lote") }
+                    if (canDelete) {
+                        OutlinedButton(
+                            onClick = { deleting = lot },
+                            enabled = !state.saving,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Eliminar lote…", color = MaterialTheme.colorScheme.error) }
+                    }
                 }
             },
             confirmButton = {
@@ -179,6 +189,24 @@ fun LotsScreen(
             dismissButton = {
                 TextButton(onClick = { editing = null }, enabled = !state.saving) { Text("Cancelar") }
             }
+        )
+    }
+
+    deleting?.let { lot ->
+        ConfirmDialog(
+            title = "¿Eliminar el lote ${lot.tank}?",
+            text = "Se eliminan el lote, TODAS sus mediciones y sus alertas. No se puede deshacer, y los reportes " +
+                "futuros ya no las incluirán. Queda anotado en la bitácora. Si solo quieres que no se mida más, usa " +
+                "Cerrar lote.",
+            confirmLabel = "Eliminar todo",
+            destructive = true,
+            onConfirm = {
+                viewModel.deleteLot(lot) {
+                    deleting = null
+                    editing = null
+                }
+            },
+            onDismiss = { deleting = null }
         )
     }
 

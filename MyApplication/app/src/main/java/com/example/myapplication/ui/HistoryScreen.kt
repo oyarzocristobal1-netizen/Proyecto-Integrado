@@ -44,6 +44,7 @@ import com.example.myapplication.model.UserSession
 import com.example.myapplication.data.asAnalysisReading
 import com.example.myapplication.model.analysis.LotAnalyzer
 import com.example.myapplication.ui.components.HistoricalAnalysisSection
+import com.example.myapplication.ui.components.ConfirmDialog
 import com.example.myapplication.ui.components.EmptyState
 import com.example.myapplication.ui.components.OfflineBanner
 import com.example.myapplication.ui.components.SavedMeasurementRow
@@ -70,6 +71,7 @@ fun HistoryScreen(
     val canFilterLots = session.role.canViewAllHistory
     val shown = state.filteredHistory
     var annulling by remember { mutableStateOf<SavedMeasurement?>(null) }
+    var deleting by remember { mutableStateOf<SavedMeasurement?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -180,6 +182,11 @@ fun HistoryScreen(
                             { annulling = m }
                         } else {
                             null
+                        },
+                        onDelete = if (session.role.canDeleteRecords) {
+                            { deleting = m }
+                        } else {
+                            null
                         }
                     )
                 }
@@ -204,6 +211,22 @@ fun HistoryScreen(
                 }
             }
         }
+    }
+
+    deleting?.let { m ->
+        ConfirmDialog(
+            title = "¿Eliminar la medición?",
+            text = "Se elimina la medición y sus alertas. No se puede deshacer y deja de aparecer en el historial y " +
+                "los reportes. Queda anotado en la bitácora. Si solo se registró por error, usa Anular: queda " +
+                "guardada con su motivo.",
+            confirmLabel = "Eliminar",
+            destructive = true,
+            onConfirm = {
+                viewModel.deleteMeasurement(m)
+                deleting = null
+            },
+            onDismiss = { deleting = null }
+        )
     }
 
     annulling?.let { m ->

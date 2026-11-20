@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.*
@@ -46,6 +47,7 @@ fun UserManagementScreen(
     var showCreate by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ManagedUser?>(null) }
     var toggling by remember { mutableStateOf<ManagedUser?>(null) }
+    var deleting by remember { mutableStateOf<ManagedUser?>(null) }
 
     LaunchedEffect(Unit) { viewModel.load() }
 
@@ -92,7 +94,7 @@ fun UserManagementScreen(
             item {
                 Text(
                     text = "Crea las cuentas del encargado y de los lecheros, edita su nombre o rol, y desactívalas o actívalas. " +
-                        "Las cuentas no se borran: una desactivada no puede ingresar, pero sus mediciones se conservan.",
+                        "Lo normal es desactivar: una cuenta desactivada no puede ingresar y sus mediciones se conservan. Eliminar es el último recurso.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -120,7 +122,9 @@ fun UserManagementScreen(
                         viewModel.clearFormError()
                         editing = user
                     },
-                    onToggleActive = { toggling = user }
+                    onToggleActive = { toggling = user },
+                    canDelete = session.role.canDeleteRecords && user.uid != session.uid,
+                    onDelete = { deleting = user }
                 )
             }
         }
@@ -134,6 +138,22 @@ fun UserManagementScreen(
             onCreate = { name, email, password, role ->
                 viewModel.createUser(name, email, password, role) { showCreate = false }
             }
+        )
+    }
+
+    deleting?.let { user ->
+        ConfirmDialog(
+            title = "¿Eliminar la cuenta?",
+            text = "Se elimina el perfil de ${user.name.ifBlank { user.email }}: ya no podrá usar la app. Sus mediciones " +
+                "se conservan con su nombre. Su cuenta de acceso sigue existiendo en Firebase Authentication (se " +
+                "borra desde la consola). Queda anotado en la bitácora. Lo normal es Desactivar.",
+            confirmLabel = "Eliminar",
+            destructive = true,
+            onConfirm = {
+                deleting = null
+                viewModel.deleteUser(user, session) {}
+            },
+            onDismiss = { deleting = null }
         )
     }
 
@@ -180,7 +200,9 @@ private fun UserRow(
     isSelf: Boolean,
     busy: Boolean,
     onEdit: () -> Unit,
-    onToggleActive: () -> Unit
+    onToggleActive: () -> Unit,
+    canDelete: Boolean,
+    onDelete: () -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -254,6 +276,18 @@ private fun UserRow(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Activar")
                     }
+                }
+            }
+            if (canDelete) {
+                TextButton(onClick = onDelete, enabled = !busy) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
                 }
             }
         }

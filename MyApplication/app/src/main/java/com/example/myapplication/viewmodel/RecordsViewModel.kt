@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.myapplication.data.ConnectivityObserver
+import com.example.myapplication.data.DeletionRepository
 import com.example.myapplication.data.HISTORY_PAGE_SIZE
 import com.example.myapplication.data.Lot
 import com.example.myapplication.data.MilkAlert
@@ -137,7 +138,8 @@ private const val MAX_NOTE = 200
  */
 class RecordsViewModel(
     private val repository: RecordsRepository,
-    connectivity: ConnectivityObserver
+    connectivity: ConnectivityObserver,
+    private val deletions: DeletionRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RecordsUiState())
@@ -532,6 +534,83 @@ class RecordsViewModel(
         ) { repository.updateTank(tank.id, tank.name, active) }
     }
 
+    // --------------------------------------------------------------- eliminaciones
+
+    /**
+     * Eliminar de verdad (solo administrador): ultimo recurso, queda anotado en la bitacora.
+     * Lo normal es desactivar, anular o cerrar. Las reglas de Firestore tambien lo exigen.
+     */
+    private fun deletionAllowed(): UserSession? {
+        val current = session ?: return null
+        if (!current.role.canDeleteRecords) {
+            showMessage("Solo el administrador puede eliminar registros.")
+            return null
+        }
+        return current
+    }
+
+    fun deleteTank(tank: Tank, onDone: () -> Unit = {}) {
+        val current = deletionAllowed() ?: return
+        write(
+            done = "Estanque eliminado.",
+            failure = "No se pudo eliminar el estanque",
+            onDone = onDone
+        ) { deletions.deleteTank(tank, current) }
+    }
+
+    fun deleteAlert(alert: MilkAlert, onDone: () -> Unit = {}) {
+        val current = deletionAllowed() ?: return
+        write(
+            done = "Alerta eliminada.",
+            failure = "No se pudo eliminar la alerta",
+            onDone = onDone
+        ) { deletions.deleteAlert(alert, current) }
+    }
+
+    /** Elimina la medicion y sus alertas. */
+    fun deleteMeasurement(measurement: SavedMeasurement, onDone: () -> Unit = {}) {
+        val current = deletionAllowed() ?: return
+        if (measurement.pendingSync) {
+            showMessage("Esa medición aún no llegó al servidor: espera a que se sincronice para eliminarla.")
+            return
+        }
+        val lotName = _state.value.lotName(measurement.lotId)
+        write(
+            done = "Medición eliminada junto con sus alertas.",
+            failure = "No se pudo eliminar la medición",
+            onDone = onDone
+        ) { deletions.deleteMeasurement(measurement, lotName, current) }
+    }
+
+    /** Elimina el lote con todas sus mediciones y alertas. Necesita conexion (lee lo que va a borrar). */
+    fun deleteLot(lot: Lot, onDone: () -> Unit = {}) {
+        val current = deletionAllowed() ?: return
+        if (!_state.value.online) {
+            showMessage("Sin conexión: conéctate a internet para eliminar un lote con sus mediciones.")
+            return
+        }
+        _state.update { it.copy(saving = true) }
+        viewModelScope.launch {
+            try {
+                val count = deletions.deleteLot(lot, current)
+                val filterWasThisLot = _state.value.historyLotFilter == lot.id
+                _state.update { st ->
+                    st.copy(
+                        saving = false,
+                        historyLotFilter = st.historyLotFilter?.takeIf { it != lot.id },
+                        currentLotId = st.currentLotId?.takeIf { it != lot.id }
+                    )
+                }
+                if (filterWasThisLot) listenHistory()
+                showMessage("Lote eliminado con $count medición(es).")
+                onDone()
+            } catch (e: Exception) {
+                _state.update { it.copy(saving = false) }
+                showMessage("No se pudo eliminar el lote: " + e.toUserMessage())
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- mediciones
 
     /**
@@ -668,7 +747,7 @@ class RecordsViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val container = appContainer()
-                RecordsViewModel(container.recordsRepository, container.connectivity)
+                RecordsViewModel(container.recordsRepository, container.connectivity, container.deletionRepository)
             }
         }
     }
