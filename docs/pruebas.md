@@ -5,7 +5,7 @@ hardware está listado al final como pendiente.
 
 ## 1. Cómo ejecutarlas
 
-**Pruebas unitarias (133)** — en la carpeta `MyApplication`:
+**Pruebas unitarias (179)** — en la carpeta `MyApplication`:
 
 ```
 .\gradlew test          (Windows)
@@ -45,7 +45,7 @@ npm test
 | `model/analysis/VerdictTest` | 8 | Veredicto (buena calidad, revisar, no usar hasta verificar), pasos, lectura dudosa, glosario |
 | `model/analysis/ProgressAnalyzerTest` | 10 | Seguimiento: mejoró, empeoró o sin cambios respecto de la muestra anterior del lote |
 | `sensor/DemoAnalysisScenariosTest` | 2 | Los 7 escenarios DEMO nuevos producen el análisis esperado con 300 lecturas con ruido cada uno |
-| **Total** | **179 (por confirmar con Gradle)** | 133 verificados + 46 nuevas de proyección, veredicto, seguimiento y datos DEMO variados |
+| **Total** | **179** | 133 anteriores + 46 nuevas de proyección, veredicto, seguimiento y datos DEMO variados |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 
@@ -73,6 +73,7 @@ npm test
 | Pruebas unitarias con `gradlew test` (Gradle 9.6.0) | BUILD SUCCESSFUL, sin fallas | Computador del equipo, 16-11-2026 |
 | **81 pruebas unitarias** (total de los resultados XML de Gradle) | **81 correctas, 0 fallas**, BUILD SUCCESSFUL en 13 s | Computador del equipo, 16-11-2026 |
 | **133 pruebas unitarias** tras agregar el análisis inteligente (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **133 correctas, 0 fallas, 0 errores**, BUILD SUCCESSFUL en 15 s | Computador del equipo, 16-11-2026 |
+| **179 pruebas unitarias** tras la medición guiada y la proyección (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **179 correctas, 0 fallas**, BUILD SUCCESSFUL en 16 s | Computador del equipo, 20-11-2026 |
 | 26 pruebas de reglas originales con el emulador (`npm test`) | 26 correctas, 0 fallidas | Computador del equipo, 16-11-2026 (primera corrida, antes de endurecer las reglas) |
 | **50 pruebas de reglas** (26 + 24 de seguridad) con las reglas endurecidas | **50 correctas, 0 fallidas** (10 grupos, 6,8 s) | Computador del equipo, 16-11-2026 |
 | Compilación de la app y prueba en teléfono | Correcta (app instalada y usada en modo DEMO) | Android Studio y teléfono del equipo |
