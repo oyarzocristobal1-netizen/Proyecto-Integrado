@@ -44,8 +44,9 @@ npm test
 | `model/analysis/ForecastTest` | 23 | Proyección: datos insuficientes, conductividad que sube o baja, temperatura que enfría, pH, turbidez, cambios lentos, tiempo sugerido para remedir |
 | `model/analysis/VerdictTest` | 8 | Veredicto (buena calidad, revisar, no usar hasta verificar), pasos, lectura dudosa, glosario |
 | `model/analysis/ProgressAnalyzerTest` | 10 | Seguimiento: mejoró, empeoró o sin cambios respecto de la muestra anterior del lote |
+| `model/analysis/FindingTextTest` | 4 | Texto de estado de cada recuadro ("Dentro del rango", "Leve · alta", etc.) y que cabe en el recuadro |
 | `sensor/DemoAnalysisScenariosTest` | 2 | Los 7 escenarios DEMO nuevos producen el análisis esperado con 300 lecturas con ruido cada uno |
-| **Total** | **179** | 133 anteriores + 46 nuevas de proyección, veredicto, seguimiento y datos DEMO variados |
+| **Total** | **183** | 179 verificados con Gradle el 20-11-2026 + 4 de textos de estado (por confirmar) |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 

@@ -56,9 +56,7 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myapplication.bluetooth.BluetoothConnectionState
 import com.example.myapplication.model.MilkQualityReading
-import com.example.myapplication.model.PhStatus
 import com.example.myapplication.model.QualityRanges
-import com.example.myapplication.model.TemperatureStatus
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.sensor.DemoScenario
 import com.example.myapplication.ui.components.CurrentLotCard
@@ -74,6 +72,7 @@ import com.example.myapplication.model.analysis.ParameterGlossary
 import com.example.myapplication.model.analysis.ProgressAnalyzer
 import com.example.myapplication.model.analysis.verdict
 import com.example.myapplication.ui.components.GlossaryCard
+import com.example.myapplication.ui.components.levelSensorStatus
 import com.example.myapplication.ui.components.NextStepsCard
 import com.example.myapplication.ui.components.ProgressCard
 import com.example.myapplication.ui.components.VerdictCard
@@ -81,6 +80,9 @@ import com.example.myapplication.ui.components.displayName
 import com.example.myapplication.ui.components.AnalysisSection
 import com.example.myapplication.data.asAnalysisReading
 import com.example.myapplication.model.analysis.MilkAnalyzer
+import com.example.myapplication.model.analysis.Parameter
+import com.example.myapplication.model.analysis.ParameterFinding
+import com.example.myapplication.model.analysis.statusText
 import com.example.myapplication.model.analysis.toAnalysisReading
 import com.example.myapplication.ui.components.ScreenTitle
 import com.example.myapplication.ui.components.SensorCard
@@ -246,9 +248,9 @@ fun MeasureScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        item { SensorGrid(reading, records.ranges) }
+                        item { SensorGrid(reading, records.ranges, analysis.findings) }
                         if (detailed) {
-                            item { AnalysisSection(analysis) }
+                            item { AnalysisSection(analysis, showFindings = false) }
                         }
                         item { GlossaryCard(ParameterGlossary.entries(records.ranges)) }
                         item {
@@ -494,9 +496,10 @@ private fun WaitingCard(state: MeasureUiState) {
     )
 }
 
-/** Las 4 tarjetas de sensores en dos filas. */
+/** Las 4 tarjetas de sensores en dos filas. El estado de cada una sale del analisis (por ejemplo "Dentro del rango"). */
 @Composable
-private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges) {
+private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges, findings: List<ParameterFinding>) {
+    fun finding(p: Parameter) = findings.first { it.parameter == p }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             modifier = Modifier
@@ -504,17 +507,13 @@ private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges) {
                 .height(IntrinsicSize.Min),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            val tempStatus = reading.temperatureStatus
+            val temp = finding(Parameter.TEMPERATURE)
             SensorCard(
                 title = "Temperatura",
                 valueString = "%.1f".format(reading.temperature),
                 unit = "°C",
-                statusText = tempStatus.label,
-                status = when (tempStatus) {
-                    TemperatureStatus.COLD -> SensorStatus.GOOD
-                    TemperatureStatus.AMBIENT -> SensorStatus.WARNING
-                    TemperatureStatus.HIGH -> SensorStatus.ALERT
-                },
+                statusText = temp.statusText,
+                status = levelSensorStatus(temp.level),
                 icon = Icons.Default.Thermostat,
                 referenceRange = "≤ %.1f °C".format(ranges.tempMax),
                 progress = (reading.temperature / 30.0f).coerceIn(0f, 1f),
@@ -523,21 +522,13 @@ private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges) {
                     .weight(1f)
                     .fillMaxHeight()
             )
-            val phStatus = reading.phStatus
+            val ph = finding(Parameter.PH)
             SensorCard(
                 title = "pH",
                 valueString = "%.2f".format(reading.ph),
                 unit = "pH",
-                statusText = when (phStatus) {
-                    PhStatus.NORMAL -> "NORMAL"
-                    PhStatus.ACIDIC -> "ÁCIDO"
-                    PhStatus.ALKALINE -> "ALCALINO"
-                },
-                status = when (phStatus) {
-                    PhStatus.NORMAL -> SensorStatus.GOOD
-                    PhStatus.ACIDIC -> SensorStatus.ALERT
-                    PhStatus.ALKALINE -> SensorStatus.WARNING
-                },
+                statusText = ph.statusText,
+                status = levelSensorStatus(ph.level),
                 icon = Icons.Default.Science,
                 referenceRange = "%.2f – %.2f".format(ranges.phMin, ranges.phMax),
                 progress = ((reading.ph - 5.0f) / 4.0f).coerceIn(0f, 1f),
@@ -552,13 +543,13 @@ private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges) {
                 .height(IntrinsicSize.Min),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            val condOk = reading.conductivity in ranges.condMin..ranges.condMax
+            val cond = finding(Parameter.CONDUCTIVITY)
             SensorCard(
                 title = "Conductividad",
                 valueString = "%.2f".format(reading.conductivity),
                 unit = "mS/cm",
-                statusText = if (condOk) "NORMAL" else "REVISAR",
-                status = if (condOk) SensorStatus.GOOD else SensorStatus.WARNING,
+                statusText = cond.statusText,
+                status = levelSensorStatus(cond.level),
                 icon = Icons.Default.ElectricBolt,
                 referenceRange = "%.2f – %.2f".format(ranges.condMin, ranges.condMax),
                 progress = (reading.conductivity / 8.0f).coerceIn(0f, 1f),
@@ -566,13 +557,13 @@ private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges) {
                     .weight(1f)
                     .fillMaxHeight()
             )
-            val turbOk = reading.turbidity >= ranges.turbMin
+            val turb = finding(Parameter.TURBIDITY)
             SensorCard(
                 title = "Turbidez",
                 valueString = "%.1f".format(reading.turbidity),
                 unit = "%",
-                statusText = if (turbOk) "OPACA" else "DILUIDA",
-                status = if (turbOk) SensorStatus.GOOD else SensorStatus.ALERT,
+                statusText = turb.statusText,
+                status = levelSensorStatus(turb.level),
                 icon = Icons.Default.WaterDrop,
                 referenceRange = "≥ %.1f %%".format(ranges.turbMin),
                 progress = (reading.turbidity / 100.0f).coerceIn(0f, 1f),

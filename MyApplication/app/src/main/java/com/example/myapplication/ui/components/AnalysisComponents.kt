@@ -3,17 +3,19 @@ package com.example.myapplication.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import com.example.myapplication.model.analysis.AnalysisCard
 import com.example.myapplication.model.analysis.CardKind
 import com.example.myapplication.model.analysis.DeviationLevel
-import com.example.myapplication.model.analysis.ForecastStatus
 import com.example.myapplication.model.analysis.ForecastEngine
 import com.example.myapplication.model.analysis.GlossaryEntry
 import com.example.myapplication.model.analysis.ProgressReport
@@ -56,6 +57,8 @@ import com.example.myapplication.model.analysis.VerdictLevel
 import com.example.myapplication.model.analysis.LotAnalysis
 import com.example.myapplication.model.analysis.MilkAnalysis
 import com.example.myapplication.model.analysis.PriorityLevel
+import com.example.myapplication.model.analysis.ParameterFinding
+import com.example.myapplication.model.analysis.statusText
 import com.example.myapplication.model.analysis.valueText
 import com.example.myapplication.ui.theme.AppTheme
 import com.example.myapplication.ui.theme.StatusTone
@@ -91,7 +94,13 @@ private fun levelTone(level: DeviationLevel?): StatusTone {
  * desplegables (que esta pasando, posibles causas, que revisar y que hacer).
  */
 @Composable
-fun AnalysisSection(analysis: MilkAnalysis, modifier: Modifier = Modifier, showTitle: Boolean = true) {
+fun AnalysisSection(
+    analysis: MilkAnalysis,
+    modifier: Modifier = Modifier,
+    showTitle: Boolean = true,
+    /** Mostrar los recuadros con el valor de cada parametro (la pantalla Medir ya los muestra aparte). */
+    showFindings: Boolean = true
+) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (showTitle) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -106,21 +115,7 @@ fun AnalysisSection(analysis: MilkAnalysis, modifier: Modifier = Modifier, showT
 
         PriorityCard(analysis)
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            analysis.findings.forEach { f ->
-                val text = if (f.level == DeviationLevel.UNRELIABLE) {
-                    "${f.parameter.label} ${f.valueText} · lectura dudosa"
-                } else {
-                    "${f.parameter.label} ${f.valueText} · ${f.level.label.lowercase()}"
-                }
-                StatusPill(text = text, tone = levelTone(f.level))
-            }
-        }
+        if (showFindings) FindingsGrid(analysis.findings)
 
         if (analysis.actions.isNotEmpty()) {
             Card(
@@ -141,22 +136,17 @@ fun AnalysisSection(analysis: MilkAnalysis, modifier: Modifier = Modifier, showT
             }
         }
 
-        ForecastCard(analysis)
-
         val cards = analysis.reliabilityCards + analysis.parameterCards + analysis.combinedCards + analysis.historyCards
         cards.forEach { card ->
             key(card.kind, card.title) { InsightCard(card) }
         }
 
-        analysis.historyNote?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
         Text(
-            text = analysis.disclaimer,
+            text = if (analysis.simulated) {
+                "Datos simulados (modo DEMO). Las causas son posibilidades, no diagnósticos confirmados."
+            } else {
+                "Las causas son posibilidades, no diagnósticos confirmados."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -315,6 +305,7 @@ fun HistoricalAnalysisSection(items: List<LotAnalysis>, lotName: (String) -> Str
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LotAnalysisRow(item: LotAnalysis, name: String) {
     var expanded by remember { mutableStateOf(false) }
@@ -331,8 +322,8 @@ private fun LotAnalysisRow(item: LotAnalysis, name: String) {
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Nombre del lote con todo el ancho; las etiquetas van debajo para que nada se apriete.
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusPill(text = item.analysis.priority.label.uppercase(), tone = tone, icon = icon)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text(
@@ -341,12 +332,19 @@ private fun LotAnalysisRow(item: LotAnalysis, name: String) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                if (item.overdue) StatusPill(text = "Medición atrasada", tone = AppTheme.status.warning)
-                if (item.analysis.simulated) SimulatedBadge()
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = if (expanded) "Ocultar análisis" else "Ver análisis"
                 )
+            }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                StatusPill(text = item.analysis.priority.label.uppercase(), tone = tone, icon = icon)
+                if (item.overdue) StatusPill(text = "Medición atrasada", tone = AppTheme.status.warning)
+                if (item.analysis.simulated) SimulatedBadge()
             }
             Text(text = item.analysis.headline, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             if (item.overdue) {
@@ -475,70 +473,6 @@ fun NextStepsCard(steps: List<String>, level: VerdictLevel, modifier: Modifier =
     }
 }
 
-/** Hacia donde van los parametros si siguen su tendencia, y cuando conviene volver a medir. */
-@Composable
-fun ForecastCard(analysis: MilkAnalysis, modifier: Modifier = Modifier) {
-    val forecast = analysis.forecast
-    val status = AppTheme.status
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = "Qué podría pasar", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            when {
-                forecast.note != null -> Text(
-                    text = forecast.note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                forecast.notable.isEmpty() -> Text(
-                    text = "Según las últimas muestras del lote, ningún parámetro saldría del rango en las próximas horas.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                else -> forecast.notable.forEach { f ->
-                    val (tone, label) = when (f.status) {
-                        ForecastStatus.WILL_EXIT_RANGE -> status.warning to "Riesgo"
-                        ForecastStatus.WORSENING -> status.alert to "Empeora"
-                        ForecastStatus.NOT_IMPROVING -> status.warning to "Sin mejora"
-                        else -> status.good to "Mejora"
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            StatusPill(text = label, tone = tone)
-                            Text(
-                                text = f.headline,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        Text(
-                            text = f.detail,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            analysis.recheckInMinutes?.let {
-                Text(
-                    text = "Próxima medición sugerida: en ${ForecastEngine.formatMinutes(it)}.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-            Text(
-                text = "Es una estimación según la tendencia de pocas muestras, no una predicción validada.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
 /** Seguimiento: como quedo esta medicion respecto de la muestra anterior del lote (por ejemplo despues de actuar). */
 @Composable
 fun ProgressCard(report: ProgressReport, modifier: Modifier = Modifier) {
@@ -613,6 +547,72 @@ fun GlossaryCard(entries: List<GlossaryEntry>, modifier: Modifier = Modifier) {
                     }
                 }
             }
+        }
+    }
+}
+
+
+/** Color del recuadro segun la gravedad de la desviacion. */
+fun levelSensorStatus(level: DeviationLevel): SensorStatus = when (level) {
+    DeviationLevel.IN_RANGE -> SensorStatus.GOOD
+    DeviationLevel.SLIGHT, DeviationLevel.MODERATE, DeviationLevel.UNRELIABLE -> SensorStatus.WARNING
+    DeviationLevel.CONSIDERABLE, DeviationLevel.CRITICAL -> SensorStatus.ALERT
+}
+
+/** Los cuatro parametros en recuadros de 2 x 2: nombre, valor y estado. */
+@Composable
+fun FindingsGrid(findings: List<ParameterFinding>, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        findings.chunked(2).forEach { row ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                row.forEach { f -> FindingBox(f, Modifier.weight(1f).fillMaxHeight()) }
+                if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FindingBox(finding: ParameterFinding, modifier: Modifier = Modifier) {
+    val status = AppTheme.status
+    val tone = when (levelSensorStatus(finding.level)) {
+        SensorStatus.GOOD -> status.good
+        SensorStatus.WARNING -> status.warning
+        SensorStatus.ALERT -> status.alert
+    }
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = tone.container)
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = finding.parameter.label,
+                style = MaterialTheme.typography.labelMedium,
+                color = tone.content.copy(alpha = 0.85f)
+            )
+            Text(
+                text = finding.valueText,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = tone.content
+            )
+            Text(
+                text = finding.statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = tone.content
+            )
+            Text(
+                text = "Rango: ${finding.reference}",
+                style = MaterialTheme.typography.bodySmall,
+                color = tone.content.copy(alpha = 0.85f)
+            )
         }
     }
 }

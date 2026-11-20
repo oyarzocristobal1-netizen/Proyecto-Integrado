@@ -69,6 +69,25 @@ data class ParameterFinding(
 /** Valor con su unidad para mostrarlo, por ejemplo "6.97" o "12.0 °C". */
 val ParameterFinding.valueText: String get() = formatValue(parameter, value)
 
+/** Estado en pocas palabras para mostrar en un recuadro, por ejemplo "Dentro del rango" o "Leve · alta". */
+val ParameterFinding.statusText: String
+    get() {
+        val word = when (direction) {
+            Direction.HIGH -> if (parameter == Parameter.PH) "alto" else "alta"
+            Direction.LOW -> if (parameter == Parameter.PH) "bajo" else "baja"
+            Direction.NONE -> ""
+        }
+        fun with(prefix: String) = if (word.isEmpty()) prefix else "$prefix · $word"
+        return when (level) {
+            DeviationLevel.IN_RANGE -> "Dentro del rango"
+            DeviationLevel.UNRELIABLE -> "Lectura dudosa"
+            DeviationLevel.SLIGHT -> with("Leve")
+            DeviationLevel.MODERATE -> with("Moderada")
+            DeviationLevel.CONSIDERABLE -> if (word.isEmpty()) "Considerable" else "Muy $word"
+            DeviationLevel.CRITICAL -> with("Crítica")
+        }
+    }
+
 enum class CardKind { PARAMETER, COMBINATION, HISTORY, RELIABILITY }
 
 /**

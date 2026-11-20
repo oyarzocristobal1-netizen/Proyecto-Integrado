@@ -42,13 +42,14 @@ No cambia el esquema de Firestore ni las reglas: el análisis se calcula al mome
    - **Revisar**: desviación leve o moderada, tendencia que preocupa o lectura no confiable.
    - **No usar hasta verificar**: condición crítica.
 4. **Qué hacer ahora**: de 1 a 4 pasos con casillas que el trabajador va marcando.
-5. **Seguimiento**: si ya había una muestra anterior del mismo lote, indica si mejoró o empeoró (por ejemplo, después de actuar).
-6. **Detalle según rol**: el lechero ve veredicto, pasos, valores y glosario; el encargado y el administrador ven además el análisis completo (causas, qué revisar, proyección, historial).
-7. **Glosario** "¿Qué mide cada parámetro?" para todos los roles.
+5. **Valores**: cada parámetro en un recuadro con su valor y su estado ("Dentro del rango", "Leve · alta", "Muy baja", "Crítica · alta") con color según la gravedad.
+6. **Seguimiento**: si ya había una muestra anterior del mismo lote, indica si mejoró o empeoró (por ejemplo, después de actuar).
+7. **Detalle según rol**: el lechero ve veredicto, pasos, valores y glosario; el encargado y el administrador ven además el análisis completo (causas, qué revisar, proyección, historial).
+8. **Glosario** "¿Qué mide cada parámetro?" para todos los roles.
 
 ## Proyección y seguimiento
 
-- **Qué podría pasar**: con una recta ajustada a las últimas muestras distintas del lote (mínimo 3 muestras y 20 min entre la primera y la última) se estima si un parámetro saldría del rango en las próximas 2 horas, si vuelve al rango o si se aleja. Incluye **la conductividad en ambas direcciones** (sube o baja) además de temperatura, pH y turbidez.
+- La proyección se usa internamente (veredicto y tiempo sugerido para remedir); ya no se muestra como tarjeta aparte. Con una recta ajustada a las últimas muestras distintas del lote (mínimo 3 muestras y 20 min entre la primera y la última) se estima si un parámetro saldría del rango en las próximas 2 horas, si vuelve al rango o si se aleja. Incluye **la conductividad en ambas direcciones** (sube o baja) además de temperatura, pH y turbidez.
 - Es una **estimación lineal con pocas muestras, no una predicción validada**; en temperatura se avisa que el enfriamiento real se desacelera.
 - **Próxima medición sugerida**: 5 min si la lectura es dudosa, 15 min crítico, 30 min advertencia, 60 min preventivo, y antes si se prevé salir del rango pronto.
 - **Medición atrasada**: en el análisis histórico se marca el lote cuyo momento de remedir ya pasó (o, si estaba normal, que lleva más de 12 h sin medirse; valor por validar).
