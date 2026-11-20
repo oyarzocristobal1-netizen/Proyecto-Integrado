@@ -79,7 +79,7 @@ class VerdictTest {
     fun glosarioTieneLosCuatroParametrosConLosRangosVigentes() {
         val entries = ParameterGlossary.entries(QualityRanges(tempMax = 5f, phMin = 6.5f, phMax = 6.9f, condMin = 3.5f, condMax = 6.0f, turbMin = 40f))
         assertEquals(listOf("Temperatura", "pH", "Conductividad", "Turbidez"), entries.map { it.title })
-        assertTrue(entries[0].text.contains("5.0"))
+        assertTrue(entries[0].text.contains("%.1f".format(5.0f)))
         assertTrue(entries[2].text.contains("no la diagnostica"))
         assertTrue(entries[3].text.contains("No mide el espesor ni la viscosidad"))
     }

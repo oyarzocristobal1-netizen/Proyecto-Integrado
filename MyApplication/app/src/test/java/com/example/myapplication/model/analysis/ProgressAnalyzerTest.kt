@@ -42,7 +42,8 @@ class ProgressAnalyzerTest {
         assertEquals(60L, report.minutesBetween)
         val temp = report.items.first { it.parameter == Parameter.TEMPERATURE }
         assertEquals(ProgressTrend.IMPROVED, temp.trend)
-        assertTrue(temp.previousText.contains("7.0") && temp.currentText.contains("4.5"))
+        // El separador decimal depende del idioma del equipo (coma en Chile, punto en inglés).
+        assertTrue(temp.previousText.contains("%.1f".format(7.0f)) && temp.currentText.contains("%.1f".format(4.5f)))
         assertTrue(report.headline.startsWith("Mejoró"))
     }
 
