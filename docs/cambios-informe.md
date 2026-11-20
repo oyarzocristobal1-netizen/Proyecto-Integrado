@@ -20,12 +20,12 @@ las secciones correspondientes del informe.
 
 - Límites físicos de los sensores en la app y en las reglas del servidor.
 - Lectura estable (4 lecturas parecidas) y reciente (≤ 15 s) para poder registrar.
-- No se registra dos veces la misma lectura; mediciones inmutables; nada se borra.
+- No se registra dos veces la misma lectura; los valores medidos no se pueden cambiar; las bajas son lógicas (anular, desactivar, cerrar) y eliminar de verdad es solo del administrador, con bitácora.
 - Un dato simulado no puede guardarse como medición del sensor (regla del servidor).
 
 ## Pruebas (sección de validación)
 
-- 80 pruebas unitarias automáticas y 26 pruebas de reglas de Firestore (detalle en [pruebas.md](pruebas.md)).
+- 81 pruebas unitarias automáticas y 50 pruebas de reglas de Firestore (detalle en [pruebas.md](pruebas.md)).
 - Pruebas con hardware pendientes hasta contar con la caja de sensores.
 
 ## Pendiente o no implementado
@@ -38,3 +38,11 @@ las secciones correspondientes del informe.
 | Textos en `strings.xml` (traducción) | Pendiente; los textos están en el código |
 | Nombre de paquete definitivo (hoy `com.example.myapplication`) | Pendiente; cambiarlo exige registrar de nuevo la app en Firebase |
 | Estimación de grasa (`grasaMin`) | Pendiente de calibrar la turbidez |
+
+## Mejoras para el encargado (supervisión)
+
+- **Liberar lote para venta**: el encargado (o el administrador) marca el lote como *apto* o *no apto*. El análisis solo sugiere; si se libera contra lo que sugiere (o con una medición atrasada) la nota es obligatoria. Queda guardado quién, cuándo y por qué. Con datos simulados el diálogo avisa que la decisión es de demostración.
+- **Panel de supervisión** (pantalla Panel, solo encargado y administrador): una tarjeta por lote de hoy con veredicto del análisis, última medición o atraso, alertas pendientes y estado de venta; actividad de los lecheros del día.
+- **Resumen diario y comparativas**: botón *Compartir resumen* (texto listo para WhatsApp o correo, con aviso de mediciones SIMULADAS) y comparativa de 7 días por estanque o por lechero (% conformes y promedios).
+- **Alertas más ágiles**: filtros por severidad y por lote, selección múltiple con una nota común y *Ver medición* dentro de cada alerta.
+- Pruebas nuevas: `SaleReleaseTest` (8), `SupervisionTest` (10) y 4 de reglas (liberar lote para venta). Todos los datos del modo DEMO se siguen marcando como simulados.

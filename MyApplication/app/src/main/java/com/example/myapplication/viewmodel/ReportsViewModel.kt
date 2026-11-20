@@ -54,11 +54,6 @@ data class ReportsUiState(
     val lotId: String? = null,
     /** Formatos elegidos (se pueden elegir varios o todos). */
     val formats: Set<ExportFormat> = setOf(ExportFormat.PDF),
-    /**
-     * Incluir mediciones simuladas (modo DEMO). Por defecto no: un reporte de calidad debe tener
-     * solo datos reales. Si se incluyen, cada fila y el resumen quedan marcados como SIMULADOS.
-     */
-    val includeSimulated: Boolean = false,
     val generating: Boolean = false,
     val message: String? = null,
     /** Se llena cuando hay archivos para compartir; la pantalla abre "Compartir" y lo limpia. */
@@ -85,8 +80,6 @@ class ReportsViewModel(
 
     fun selectAllFormats() = _state.update { it.copy(formats = ExportFormat.entries.toSet()) }
 
-    fun setIncludeSimulated(include: Boolean) = _state.update { it.copy(includeSimulated = include) }
-
     fun messageShown() = _state.update { it.copy(message = null) }
 
     fun shareStarted() = _state.update { it.copy(ready = null) }
@@ -105,17 +98,11 @@ class ReportsViewModel(
         viewModelScope.launch {
             try {
                 val (from, to) = range(st.period)
-                val all = repository.fetchForReport(from, to, st.lotId)
-                val measurements = if (st.includeSimulated) all else all.filter { !it.isSimulated }
+                // Incluye todas las mediciones: las simuladas (modo DEMO) salen marcadas como SIMULADAS
+                // en cada fila y en el resumen, y las anuladas ya vienen excluidas del repositorio.
+                val measurements = repository.fetchForReport(from, to, st.lotId)
                 if (measurements.isEmpty()) {
-                    val simulated = all.count { it.isSimulated }
-                    val text = if (simulated > 0 && !st.includeSimulated) {
-                        "El periodo solo tiene $simulated medición(es) simulada(s). Activa \"Incluir simuladas\" " +
-                            "para exportarlas (quedarán marcadas como SIMULADAS)."
-                    } else {
-                        "No hay mediciones en el periodo y lote elegidos."
-                    }
-                    _state.update { it.copy(generating = false, message = text) }
+                    _state.update { it.copy(generating = false, message = "No hay mediciones en el periodo y lote elegidos.") }
                     return@launch
                 }
                 val lotNames = lots.associate { it.id to it.tank }
@@ -143,7 +130,7 @@ class ReportsViewModel(
                 val uris = withContext(Dispatchers.IO) { writeFiles(data, st.formats) }
                 val mime = if (st.formats.size == 1) st.formats.first().mimeType else "*/*"
                 // Al terminar se abre directamente "Compartir"; solo se avisa si el reporte quedo recortado.
-                val limitNote = if (all.size >= REPORT_LIMIT) {
+                val limitNote = if (measurements.size >= REPORT_LIMIT) {
                     "Se incluyeron las $REPORT_LIMIT mediciones más recientes (máximo por reporte): acota el periodo."
                 } else {
                     null

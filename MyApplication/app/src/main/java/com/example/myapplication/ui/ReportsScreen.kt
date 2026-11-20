@@ -145,28 +145,6 @@ fun ReportsScreen(
             }
 
             SectionCard(
-                "🧪",
-                "Mediciones simuladas",
-                "Por defecto el reporte incluye solo mediciones reales tomadas con el sensor."
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Incluir simuladas (modo DEMO)", modifier = Modifier.weight(1f))
-                    Switch(
-                        checked = state.includeSimulated,
-                        onCheckedChange = viewModel::setIncludeSimulated,
-                        enabled = !state.generating
-                    )
-                }
-                if (state.includeSimulated) {
-                    Text(
-                        "Quedarán marcadas como SIMULADAS en la columna Origen y en el resumen.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-
-            SectionCard(
                 "📄",
                 "Formato",
                 "PDF para imprimir o enviar · Excel y CSV para analizar · Word para editar o agregar al informe."
@@ -202,7 +180,8 @@ fun ReportsScreen(
 
             WarningNote(
                 "El reporte necesita conexión a internet para leer las mediciones. " +
-                    "Con varios formatos se comparten todos los archivos juntos."
+                    "Con varios formatos se comparten todos los archivos juntos. " +
+                    "Las mediciones simuladas (modo DEMO) quedan marcadas como SIMULADAS."
             )
 
             Spacer(modifier = Modifier.height(16.dp))

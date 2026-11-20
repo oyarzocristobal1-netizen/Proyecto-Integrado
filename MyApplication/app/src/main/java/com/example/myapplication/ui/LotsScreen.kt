@@ -16,7 +16,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.Lot
+import com.example.myapplication.data.asAnalysisReading
 import com.example.myapplication.model.MeasurementValidator
+import com.example.myapplication.model.analysis.LotAnalyzer
+import com.example.myapplication.model.analysis.verdict
+import com.example.myapplication.ui.components.ConfirmDialog
+import com.example.myapplication.ui.components.SaleDialog
+import com.example.myapplication.ui.components.SalePill
+import com.example.myapplication.ui.components.saleDetailText
 import com.example.myapplication.ui.components.ScreenTitle
 import com.example.myapplication.ui.components.StatusPill
 import com.example.myapplication.ui.theme.AppTheme
@@ -29,11 +36,25 @@ import java.util.Locale
 @Composable
 fun LotsScreen(
     viewModel: RecordsViewModel,
+    /** Solo el administrador elimina de verdad (lo normal es cerrar el lote). */
+    canDelete: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsState()
     var editing by remember { mutableStateOf<Lot?>(null) }
+    var togglingClosed by remember { mutableStateOf<Lot?>(null) }
+    var deleting by remember { mutableStateOf<Lot?>(null) }
+    var releasing by remember { mutableStateOf<Lot?>(null) }
+    // Analisis de cada lote con sus mediciones validas (las anuladas no cuentan).
+    val measurements = state.recentValid + state.historyValid
+    val analyses = remember(measurements, state.ranges) {
+        LotAnalyzer.analyze(measurements.distinctBy { it.id }.map { it.asAnalysisReading() }, state.ranges, maxLots = Int.MAX_VALUE)
+            .associateBy { it.lotId }
+    }
+    val simulatedLotIds = remember(measurements) {
+        measurements.filter { it.isSimulated }.map { it.lotId }.toSet()
+    }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
 
     Scaffold(
@@ -59,7 +80,9 @@ fun LotsScreen(
         ) {
             item {
                 Text(
-                    "Toca un lote para corregir el estanque o agregar una observación. Los lotes no se borran.",
+                    "Toca un lote para corregir el estanque, agregar una observación o cerrarlo. " +
+                        "Con \"Liberar para venta\" decides si la leche del lote es apta o no. " +
+                        "Un lote cerrado no admite mediciones nuevas (se puede reabrir). Eliminar un lote es el último recurso (solo el administrador).",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -89,10 +112,13 @@ fun LotsScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(lot.tank, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                if (lot.id == state.currentLotId) {
+                                if (lot.closed) {
+                                    StatusPill("CERRADO", AppTheme.status.info)
+                                } else if (lot.id == state.currentLotId) {
                                     StatusPill("ACTIVO", AppTheme.status.good)
                                 }
                             }
+                            SalePill(lot.sale)
                             Text(
                                 "${dateFormat.format(lot.date)} · creado por ${lot.createdByName.ifBlank { "—" }}",
                                 style = MaterialTheme.typography.bodySmall,
@@ -101,6 +127,20 @@ fun LotsScreen(
                             if (lot.note.isNotBlank()) {
                                 Text(lot.note, style = MaterialTheme.typography.bodySmall)
                             }
+                            saleDetailText(lot, dateFormat)?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (lot.closed && lot.stateByName.isNotBlank()) {
+                                Text(
+                                    "Cerrado por ${lot.stateByName}" + (lot.stateAt?.let { " · ${dateFormat.format(it)}" } ?: ""),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            FilledTonalButton(
+                                onClick = { releasing = lot },
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) { Text(if (lot.sale == null) "Liberar para venta" else "Cambiar decisión de venta") }
                         }
                         Icon(Icons.Default.Edit, contentDescription = "Editar lote")
                     }
@@ -151,6 +191,18 @@ fun LotsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    OutlinedButton(
+                        onClick = { togglingClosed = lot },
+                        enabled = !state.saving,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (lot.closed) "Reabrir lote" else "Cerrar lote") }
+                    if (canDelete) {
+                        OutlinedButton(
+                            onClick = { deleting = lot },
+                            enabled = !state.saving,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Eliminar lote…", color = MaterialTheme.colorScheme.error) }
+                    }
                 }
             },
             confirmButton = {
@@ -162,6 +214,66 @@ fun LotsScreen(
             dismissButton = {
                 TextButton(onClick = { editing = null }, enabled = !state.saving) { Text("Cancelar") }
             }
+        )
+    }
+
+    releasing?.let { lot ->
+        val analysis = analyses[lot.id]
+        SaleDialog(
+            lot = lot,
+            analysis = analysis,
+            measurementCount = analysis?.readings ?: 0,
+            simulatedData = lot.id in simulatedLotIds,
+            saving = state.saving,
+            onConfirm = { decision, note ->
+                viewModel.setLotSale(
+                    lot = lot,
+                    decision = decision,
+                    note = note,
+                    verdict = analysis?.analysis?.verdict()?.level,
+                    measurementCount = analysis?.readings ?: 0,
+                    overdue = analysis?.overdue == true
+                ) { releasing = null }
+            },
+            onDismiss = { releasing = null }
+        )
+    }
+
+    deleting?.let { lot ->
+        ConfirmDialog(
+            title = "¿Eliminar el lote ${lot.tank}?",
+            text = "Se eliminan el lote, TODAS sus mediciones y sus alertas. No se puede deshacer, y los reportes " +
+                "futuros ya no las incluirán. Queda anotado en la bitácora. Si solo quieres que no se mida más, usa " +
+                "Cerrar lote.",
+            confirmLabel = "Eliminar todo",
+            destructive = true,
+            onConfirm = {
+                viewModel.deleteLot(lot) {
+                    deleting = null
+                    editing = null
+                }
+            },
+            onDismiss = { deleting = null }
+        )
+    }
+
+    togglingClosed?.let { lot ->
+        ConfirmDialog(
+            title = if (lot.closed) "¿Reabrir el lote?" else "¿Cerrar el lote?",
+            text = if (lot.closed) {
+                "Se podrán registrar mediciones nuevas en ${lot.tank}."
+            } else {
+                "Ya no se podrán registrar mediciones en ${lot.tank} de este día. " +
+                    "Las mediciones guardadas se conservan y el lote se puede reabrir."
+            },
+            confirmLabel = if (lot.closed) "Reabrir" else "Cerrar lote",
+            onConfirm = {
+                viewModel.setLotClosed(lot, !lot.closed) {
+                    togglingClosed = null
+                    editing = null
+                }
+            },
+            onDismiss = { togglingClosed = null }
         )
     }
 }

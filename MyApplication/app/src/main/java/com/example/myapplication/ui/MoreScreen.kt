@@ -23,7 +23,9 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.ManageAccounts
+import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,6 +63,8 @@ fun MoreScreen(
     viewModel: RecordsViewModel,
     session: UserSession,
     onOpenLots: () -> Unit,
+    onOpenTanks: () -> Unit,
+    onOpenDevices: () -> Unit,
     onOpenReports: () -> Unit,
     onOpenRanges: () -> Unit,
     onOpenUsers: () -> Unit,
@@ -128,7 +132,10 @@ fun MoreScreen(
                 ) {
                     Column {
                         if (role.canEditLots) {
-                            MenuRow("Lotes", "Corregir estanque y observaciones", Icons.Outlined.Inventory2, onOpenLots)
+                            MenuRow("Lotes", "Corregir, cerrar o reabrir lotes", Icons.Outlined.Inventory2, onOpenLots)
+                        }
+                        if (role.canManageTanks) {
+                            MenuRow("Estanques", "Crear, renombrar y desactivar estanques", Icons.Outlined.WaterDrop, onOpenTanks)
                         }
                         if (role.canExportReports) {
                             MenuRow("Reportes", "PDF, Excel, Word y CSV", Icons.Outlined.Description, onOpenReports)
@@ -140,6 +147,7 @@ fun MoreScreen(
                             MenuRow("Gestión de usuarios", "Crear cuentas, cambiar rol o desactivar", Icons.Outlined.ManageAccounts, onOpenUsers)
                         }
                         if (role.canCalibrateDevice) {
+                            MenuRow("Dispositivos y calibraciones", "Cajas de sensores y su historial de calibración", Icons.Outlined.Sensors, onOpenDevices)
                             MenuRow(
                                 title = "Código de referencia de la caja",
                                 subtitle = "Ejemplo de firmware y formato de datos",

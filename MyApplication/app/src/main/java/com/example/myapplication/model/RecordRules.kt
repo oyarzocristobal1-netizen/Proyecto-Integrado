@@ -30,11 +30,14 @@ object RecordRules {
      */
     fun lotIdFor(tank: String, date: Date, timeZone: TimeZone = TimeZone.getDefault()): String {
         val day = SimpleDateFormat("yyyyMMdd", Locale.US).apply { this.timeZone = timeZone }.format(date)
-        val slug = Normalizer.normalize(tank.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        return "$day-${slug(tank, "estanque")}"
+    }
+
+    /** Texto en minusculas, sin tildes y con guiones: "Estanque Ñuble 1" -> "estanque-nuble-1". */
+    fun slug(text: String, fallback: String): String =
+        Normalizer.normalize(text.trim().lowercase(Locale.ROOT), Normalizer.Form.NFD)
             .replace(Regex("\\p{M}"), "")
             .replace(Regex("[^a-z0-9]+"), "-")
             .trim('-')
-            .ifEmpty { "estanque" }
-        return "$day-$slug"
-    }
+            .ifEmpty { fallback }
 }

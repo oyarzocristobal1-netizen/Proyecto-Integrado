@@ -21,6 +21,8 @@ class AppContainer(context: Context) {
     val authRepository = AuthRepository(auth, firestore)
     val userAdminRepository = UserAdminRepository(auth, firestore)
     val recordsRepository = RecordsRepository(firestore)
+    val devicesRepository = DevicesRepository(firestore)
+    val deletionRepository = DeletionRepository(firestore)
 
     val connectivity = ConnectivityObserver(context.applicationContext)
 

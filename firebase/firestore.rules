@@ -1,5 +1,7 @@
 // Reglas de seguridad de Cloud Firestore - Proyecto Integrado (calidad de la leche)
 // Coherentes con la Tabla 31 (matriz de permisos por rol): admin, encargado y lechero.
+// Las bajas normales son logicas (desactivar, anular, cerrar); eliminar de verdad lo puede hacer solo el
+// administrador y queda anotado en la bitacora "eliminaciones" (que nadie puede editar ni borrar).
 // Ademas de los permisos, validan el formato de cada documento para que no se guarden
 // registros incompletos, con tipos incorrectos o con valores fisicamente imposibles.
 // Pruebas automaticas: firebase/tests/firestore.rules.test.mjs (emulador de Firestore).
@@ -26,6 +28,9 @@ service cloud.firestore {
     function existeDespues(col, id) {
       return existsAfter(/databases/$(db)/documents/$(col)/$(id));
     }
+    // El nombre que se guarda en un registro debe ser el del perfil de quien escribe (no se puede
+    // atribuir un registro a otra persona cambiando el texto).
+    function esMiNombre(v) { return v is string && v == perfil().nombre; }
     function texto(v, maximo) { return v is string && v.size() > 0 && v.size() <= maximo; }
     function numeroEntre(v, minimo, maximo) { return v is number && v >= minimo && v <= maximo; }
     function sensoresValidos(s) {
@@ -36,6 +41,34 @@ service cloud.firestore {
         && numeroEntre(s.ph, 0, 14)
         && numeroEntre(s.cond, 0, 20)
         && numeroEntre(s.turb, 0, 100);
+    }
+    // Campos que cambia la escritura (para permitir cambiar solo algunos)
+    function cambios() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    // Texto opcional: si existe, es texto de hasta "maximo" caracteres
+    function notaOpcional(d, campo, maximo) {
+      return !(campo in d) || (d[campo] is string && d[campo].size() <= maximo);
+    }
+    // Cerrar o reabrir un lote: queda quien lo hizo (con su nombre) y la hora del servidor.
+    // La hora del servidor siempre cambia; el nombre puede repetirse (la misma persona cierra y reabre),
+    // por eso se exige que el campo exista y sea el propio, no que "cambie".
+    function estadoLoteValido() {
+      return !cambios().hasAny(['cerrado', 'estadoPor', 'estadoEn'])
+        || (cambios().hasAll(['estadoEn'])
+            && request.resource.data.keys().hasAll(['cerrado', 'estadoPor'])
+            && request.resource.data.cerrado is bool
+            && esMiNombre(request.resource.data.estadoPor)
+            && request.resource.data.estadoEn == request.time);
+    }
+    // Liberar el lote para venta (apto / no apto): queda quien lo decidio, cuando y una nota opcional.
+    // Se puede volver a decidir; cada decision actualiza quien y cuando.
+    function ventaLoteValida() {
+      return !cambios().hasAny(['venta', 'ventaNota', 'ventaPor', 'ventaEn'])
+        || (cambios().hasAll(['ventaEn'])
+            && request.resource.data.keys().hasAll(['venta', 'ventaPor'])
+            && request.resource.data.venta in ['apto', 'no_apto']
+            && esMiNombre(request.resource.data.ventaPor)
+            && request.resource.data.ventaEn == request.time
+            && notaOpcional(request.resource.data, 'ventaNota', 200));
     }
     function rangosValidos(r) {
       return numeroEntre(r.tempMax, 0, 20)
@@ -58,7 +91,9 @@ service cloud.firestore {
         && request.resource.data.activo is bool
         && (uid != request.auth.uid
             || (request.resource.data.rol == 'admin' && request.resource.data.activo == true));
-      allow delete: if false;   // las cuentas se desactivan, no se borran (trazabilidad)
+      // Solo el administrador elimina un perfil (nunca el suyo). Lo normal es desactivar la cuenta:
+      // eliminarla le quita el acceso a la app, pero no borra su cuenta en Authentication.
+      allow delete: if esAdmin() && uid != request.auth.uid;
     }
 
     // ------------------------------------------------------------ dispositivos
@@ -68,7 +103,23 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['nombre', 'ubicacion', 'estado', 'ultimaCalibracion'])
         && texto(request.resource.data.nombre, 60)
         && request.resource.data.estado in ['activo', 'inactivo'];
-      allow delete: if false;
+      allow delete: if esAdmin();
+    }
+
+    // ------------------------------------------------------------ estanques (catalogo)
+    // Lo normal es desactivarlos: los lotes antiguos guardan el nombre como texto y no dependen del catalogo.
+    match /estanques/{id} {
+      allow read: if activo();
+      allow create: if esEncargado()
+        && request.resource.data.keys().hasOnly(['nombre', 'activo', 'creadoPor'])
+        && texto(request.resource.data.nombre, 40)
+        && request.resource.data.activo == true
+        && request.resource.data.creadoPor == request.auth.uid;
+      allow update: if esEncargado()
+        && cambios().hasOnly(['nombre', 'activo'])
+        && texto(request.resource.data.nombre, 40)
+        && request.resource.data.activo is bool;
+      allow delete: if esAdmin();
     }
 
     // ------------------------------------------------------------ lotes
@@ -77,17 +128,21 @@ service cloud.firestore {
       allow create: if activo()
         && request.resource.data.keys().hasOnly(['estanque', 'fecha', 'creadoPor', 'nombreCreador', 'observacion'])
         && request.resource.data.creadoPor == request.auth.uid
+        && esMiNombre(request.resource.data.nombreCreador)
         && texto(request.resource.data.estanque, 40)
         && request.resource.data.fecha is timestamp
         && request.resource.data.fecha <= request.time + duration.value(5, 'm')
         && request.resource.data.observacion is string
         && request.resource.data.observacion.size() <= 200;
       allow update: if esEncargado()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estanque', 'observacion'])
+        && cambios().hasOnly(['estanque', 'observacion', 'cerrado', 'estadoPor', 'estadoEn',
+             'venta', 'ventaNota', 'ventaPor', 'ventaEn'])
         && texto(request.resource.data.estanque, 40)
         && request.resource.data.observacion is string
-        && request.resource.data.observacion.size() <= 200;
-      allow delete: if false;
+        && request.resource.data.observacion.size() <= 200
+        && estadoLoteValido()
+        && ventaLoteValida();
+      allow delete: if esAdmin();
     }
 
     // ------------------------------------------------------------ mediciones
@@ -98,7 +153,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['idDispositivo', 'idLote', 'uidLechero', 'nombreLechero',
              'fechaHora', 'registradoEn', 'origen', 'sensores', 'resultado'])
         && request.resource.data.uidLechero == request.auth.uid
-        && request.resource.data.nombreLechero is string
+        && esMiNombre(request.resource.data.nombreLechero)
         // Origen: los datos simulados (modo DEMO) solo se guardan con el dispositivo "simulador"
         && ((request.resource.data.origen == 'simulado' && request.resource.data.idDispositivo == 'simulador')
             || (request.resource.data.origen == 'sensor' && request.resource.data.idDispositivo != 'simulador'))
@@ -108,10 +163,25 @@ service cloud.firestore {
         && request.resource.data.fechaHora <= request.time + duration.value(2, 'm')
         && request.resource.data.fechaHora >= request.time - duration.value(7, 'd')
         && sensoresValidos(request.resource.data.sensores)
+        && request.resource.data.resultado is map
+        && request.resource.data.resultado.keys().hasOnly(['estado', 'titulo'])
         && request.resource.data.resultado.estado in ['verde', 'ambar', 'rojo']
+        && texto(request.resource.data.resultado.titulo, 80)
         && existeDespues('lotes', request.resource.data.idLote)
+        // Un lote cerrado ya no recibe mediciones
+        && getAfter(/databases/$(db)/documents/lotes/$(request.resource.data.idLote)).data.get('cerrado', false) == false
         && existeDespues('dispositivos', request.resource.data.idDispositivo);
-      allow update, delete: if false;          // mediciones inmutables
+      // Inmutables: lo unico que cambia es anularlas (con motivo y quien lo hizo), sin borrarlas.
+      allow update: if esEncargado()
+        && cambios().hasOnly(['anulada', 'motivoAnulacion', 'anuladaPor', 'anuladaEn'])
+        && cambios().hasAll(['anulada', 'motivoAnulacion', 'anuladaPor', 'anuladaEn'])
+        && resource.data.get('anulada', false) == false
+        && request.resource.data.anulada == true
+        && texto(request.resource.data.motivoAnulacion, 200)
+        && request.resource.data.motivoAnulacion.size() >= 3
+        && esMiNombre(request.resource.data.anuladaPor)
+        && request.resource.data.anuladaEn == request.time;
+      allow delete: if esAdmin();
     }
 
     // ------------------------------------------------------------ alertas
@@ -125,24 +195,74 @@ service cloud.firestore {
         && request.resource.data.tipo in ['temperatura', 'ph', 'conductividad', 'turbidez']
         && request.resource.data.severidad in ['media', 'alta']
         && request.resource.data.atendida == false
-        && request.resource.data.valor is number
+        && numeroEntre(request.resource.data.valor, -5, 100)
+        && texto(request.resource.data.mensaje, 200)
+        && esMiNombre(request.resource.data.nombreLechero)
+        && request.resource.data.idLote == getAfter(/databases/$(db)/documents/mediciones/$(request.resource.data.idMedicion)).data.idLote
         && request.resource.data.origen in ['simulado', 'sensor']
         && request.resource.data.fecha is timestamp
         && existeDespues('mediciones', request.resource.data.idMedicion)
         && getAfter(/databases/$(db)/documents/mediciones/$(request.resource.data.idMedicion)).data.uidLechero
              == request.auth.uid;
-      // Encargado y administrador solo pueden marcarla como atendida
-      allow update: if esEncargado()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['atendida'])
-        && request.resource.data.atendida == true;
-      allow delete: if false;
+      // Encargado y administrador la marcan como atendida (con nota opcional, quien y cuando)
+      // y despues pueden editar la nota. No se puede reabrir ni cambiar nada mas.
+      allow update: if esEncargado() && (
+        // formato anterior: solo marcar atendida
+        (cambios().hasOnly(['atendida']) && request.resource.data.atendida == true)
+        // atender con nota
+        || (resource.data.atendida == false
+            && cambios().hasOnly(['atendida', 'nota', 'atendidaPor', 'atendidaEn'])
+            && cambios().hasAll(['atendida', 'atendidaPor', 'atendidaEn'])
+            && request.resource.data.atendida == true
+            && esMiNombre(request.resource.data.atendidaPor)
+            && request.resource.data.atendidaEn == request.time
+            && notaOpcional(request.resource.data, 'nota', 300))
+        // editar la nota de una alerta ya atendida
+        || (resource.data.atendida == true
+            && cambios().hasOnly(['nota'])
+            && request.resource.data.nota is string
+            && request.resource.data.nota.size() <= 300));
+      allow delete: if esAdmin();
     }
 
     // ------------------------------------------------------------ administracion
-    match /calibraciones/{id} { allow read, write: if esAdmin(); }
+    match /calibraciones/{id} {
+      allow read: if esAdmin();
+      // Cada calibracion queda registrada con su dispositivo, fecha del servidor y quien la hizo.
+      allow create: if esAdmin()
+        && request.resource.data.keys().hasOnly(['idDispositivo', 'fecha', 'realizadaPor', 'parametro', 'nota'])
+        && request.resource.data.keys().hasAll(['idDispositivo', 'fecha', 'realizadaPor', 'parametro'])
+        && existeDespues('dispositivos', request.resource.data.idDispositivo)
+        && request.resource.data.fecha == request.time
+        && esMiNombre(request.resource.data.realizadaPor)
+        && request.resource.data.parametro in ['temperatura', 'ph', 'conductividad', 'turbidez', 'todos']
+        && notaOpcional(request.resource.data, 'nota', 200);
+      // Solo se corrige la nota; la calibracion en si no se reescribe.
+      allow update: if esAdmin()
+        && cambios().hasOnly(['nota'])
+        && request.resource.data.nota is string
+        && request.resource.data.nota.size() <= 200;
+      allow delete: if esAdmin();
+    }
+
+    // ------------------------------------------------------------ bitacora de eliminaciones
+    // Cada eliminacion deja quien la hizo, que borro y cuando. La bitacora no se edita ni se borra.
+    match /eliminaciones/{id} {
+      allow read: if esAdmin();
+      allow create: if esAdmin()
+        && request.resource.data.keys().hasOnly(['tipo', 'idElemento', 'descripcion', 'eliminadoPor', 'fecha'])
+        && request.resource.data.keys().hasAll(['tipo', 'idElemento', 'descripcion', 'eliminadoPor', 'fecha'])
+        && request.resource.data.tipo in ['usuario', 'dispositivo', 'estanque', 'lote', 'medicion', 'alerta', 'calibracion']
+        && texto(request.resource.data.idElemento, 200)
+        && texto(request.resource.data.descripcion, 300)
+        && esMiNombre(request.resource.data.eliminadoPor)
+        && request.resource.data.fecha == request.time;
+      allow update, delete: if false;
+    }
     match /configuracion/{id} {
       allow read: if activo();
-      allow write: if esAdmin() && id == 'rangos' && rangosValidos(request.resource.data);
+      allow create, update: if esAdmin() && id == 'rangos' && rangosValidos(request.resource.data);
+      allow delete: if false;
     }
     // Todo lo demas queda denegado por defecto
   }

@@ -3,8 +3,6 @@ package com.example.myapplication.ui
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,8 +22,6 @@ import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.outlined.BluetoothDisabled
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.HourglassTop
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material3.Button
@@ -39,14 +35,21 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,9 +60,7 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myapplication.bluetooth.BluetoothConnectionState
 import com.example.myapplication.model.MilkQualityReading
-import com.example.myapplication.model.PhStatus
 import com.example.myapplication.model.QualityRanges
-import com.example.myapplication.model.TemperatureStatus
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.sensor.DemoScenario
 import com.example.myapplication.ui.components.CurrentLotCard
@@ -68,12 +69,30 @@ import com.example.myapplication.ui.components.DeviceSelectionDialog
 import com.example.myapplication.ui.components.LotPickerDialog
 import com.example.myapplication.ui.components.NoticeBanner
 import com.example.myapplication.ui.components.OfflineBanner
-import com.example.myapplication.ui.components.QualityAssessmentCard
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import com.example.myapplication.model.MeasurementValidator
+import com.example.myapplication.model.analysis.ParameterGlossary
+import com.example.myapplication.model.analysis.ProgressAnalyzer
+import com.example.myapplication.model.analysis.VerdictLevel
+import com.example.myapplication.model.analysis.alertMessage
+import com.example.myapplication.model.analysis.verdict
+import com.example.myapplication.ui.components.GlossaryCard
+import com.example.myapplication.ui.components.levelSensorStatus
+import com.example.myapplication.ui.components.NextStepsCard
+import com.example.myapplication.ui.components.ProgressCard
+import com.example.myapplication.ui.components.VerdictCard
+import com.example.myapplication.ui.components.displayName
+import com.example.myapplication.ui.components.AnalysisSection
+import com.example.myapplication.data.asAnalysisReading
+import com.example.myapplication.model.analysis.MilkAnalyzer
+import com.example.myapplication.model.analysis.Parameter
+import com.example.myapplication.model.analysis.ParameterFinding
+import com.example.myapplication.model.analysis.statusText
+import com.example.myapplication.model.analysis.toAnalysisReading
 import com.example.myapplication.ui.components.ScreenTitle
 import com.example.myapplication.ui.components.SensorCard
 import com.example.myapplication.ui.components.SensorStatus
-import com.example.myapplication.ui.components.SimulatedBadge
-import com.example.myapplication.ui.components.StatusPill
 import com.example.myapplication.ui.components.TemperatureScale
 import com.example.myapplication.ui.theme.AppTheme
 import com.example.myapplication.viewmodel.MeasureMode
@@ -97,6 +116,54 @@ fun MeasureScreen(
     val records by recordsViewModel.state.collectAsStateWithLifecycle()
     var showLotPicker by rememberSaveable { mutableStateOf(false) }
 
+    var phase by remember { mutableStateOf(MeasurePhase.IDLE) }
+    var result by remember { mutableStateOf<MilkQualityReading?>(null) }
+    var startedAt by remember { mutableLongStateOf(0L) }
+    val startMeasuring: () -> Unit = {
+        result = null
+        startedAt = System.currentTimeMillis()
+        measureViewModel.startMeasurement()
+        phase = MeasurePhase.MEASURING
+    }
+
+    // Se interpreta con las mediciones ya registradas del lote actual (si no hay lote, sin historial).
+    val doneReading = result
+    val lotId = records.currentLotId
+    val previous = remember(records.recent, lotId) {
+        if (lotId == null) emptyList() else records.recentValid.map { it.asAnalysisReading() }
+    }
+    val analysis = remember(doneReading, previous, lotId, records.ranges) {
+        doneReading?.let { MilkAnalyzer.analyze(it.toAnalysisReading(lotId), previous, records.ranges) }
+    }
+    val verdict = remember(analysis) { analysis?.verdict() }
+    val progress = remember(doneReading, previous, lotId, records.ranges) {
+        doneReading?.let { ProgressAnalyzer.compare(it.toAnalysisReading(lotId), previous, records.ranges) }
+    }
+
+    // Aviso flotante al terminar la medicion si algo salio de rango (la alerta se revisa luego en Alertas).
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(doneReading) {
+        val message = analysis?.alertMessage()
+        if (doneReading != null && message != null) {
+            snackbarHostState.showSnackbar(message = message, withDismissAction = true, duration = SnackbarDuration.Long)
+        }
+    }
+
+    // Otra muestra o fuente: se vuelve al inicio para empezar una medicion nueva.
+    LaunchedEffect(measure.mode, measure.scenario) {
+        phase = MeasurePhase.IDLE
+        result = null
+    }
+    // La medicion termina cuando la lectura se estabiliza.
+    LaunchedEffect(phase, measure.stability.isStable, measure.reading) {
+        val reading = measure.reading
+        // Solo cuenta una lectura tomada despues de pulsar el boton (no una anterior).
+        if (phase == MeasurePhase.MEASURING && measure.stability.isStable && reading != null && reading.timestamp >= startedAt) {
+            result = reading
+            phase = MeasurePhase.DONE
+        }
+    }
+
     // La simulacion y el reloj solo corren mientras esta pantalla esta visible.
     LifecycleStartEffect(measureViewModel) {
         measureViewModel.onScreenVisible(true)
@@ -105,6 +172,17 @@ fun MeasureScreen(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                val tone = if (verdict?.level == VerdictLevel.STOP) AppTheme.status.alert else AppTheme.status.warning
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = tone.container,
+                    contentColor = tone.content,
+                    dismissActionContentColor = tone.content
+                )
+            }
+        },
         topBar = {
             TopAppBar(
                 title = { ScreenTitle("Medir", if (measure.mode == MeasureMode.DEMO) "Modo DEMO (simulación)" else "Caja de sensores") },
@@ -156,34 +234,74 @@ fun MeasureScreen(
                 }
             }
 
-            val reading = measure.reading
-            if (reading == null) {
-                item { WaitingCard(measure) }
-            } else {
-                item { ReadingStatusRow(measure, reading) }
-                item {
-                    QualityAssessmentCard(assessment = reading.overallAssessment, simulated = reading.isSimulated)
+            when (phase) {
+                MeasurePhase.IDLE -> {
+                    item {
+                        StartMeasurementCard(
+                            canStart = measure.mode == MeasureMode.DEMO || measure.isConnected,
+                            demo = measure.mode == MeasureMode.DEMO,
+                            lotName = records.currentLot?.displayName(),
+                            onStart = startMeasuring,
+                            onChangeLot = { showLotPicker = true }
+                        )
+                    }
                 }
-                item {
-                    Text(
-                        text = if (reading.isSimulated) "Valores simulados" else "Valores del sensor",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                item { SensorGrid(reading, records.ranges) }
-            }
 
-            item {
-                CurrentLotCard(
-                    currentLot = records.currentLot,
-                    saving = records.saving,
-                    recordEnabled = measure.canRecord,
-                    recordLabel = if (measure.mode == MeasureMode.DEMO) "Registrar medición simulada" else "Registrar medición",
-                    hint = measure.recordHint,
-                    onChangeLot = { showLotPicker = true },
-                    onRecord = { recordsViewModel.recordMeasurement(measure.reading, measure.stability) }
-                )
+                MeasurePhase.MEASURING -> {
+                    item {
+                        MeasuringCard(
+                            samples = measure.stability.samples,
+                            required = measure.stability.required,
+                            onCancel = { phase = MeasurePhase.IDLE }
+                        )
+                    }
+                }
+
+                MeasurePhase.DONE -> {
+                    val reading = result
+                    if (reading == null || analysis == null || verdict == null) {
+                        item { WaitingCard(measure) }
+                    } else {
+                        val detailed = session.role.canViewAllHistory
+
+                        item { VerdictCard(verdict = verdict, simulated = reading.isSimulated) }
+                        item { NextStepsCard(steps = verdict.steps, level = verdict.level) }
+                        progress?.let { report -> item { ProgressCard(report) } }
+                        item {
+                            Text(
+                                text = if (reading.isSimulated) "Valores simulados" else "Valores del sensor",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        item { SensorGrid(reading, records.ranges, analysis.findings) }
+                        if (detailed) {
+                            item { AnalysisSection(analysis, showFindings = false) }
+                        }
+                        item { GlossaryCard(ParameterGlossary.entries(records.ranges)) }
+                        item {
+                            CurrentLotCard(
+                                currentLot = records.currentLot,
+                                saving = records.saving,
+                                recordEnabled = measure.canRecord,
+                                recordLabel = if (measure.mode == MeasureMode.DEMO) "Registrar medición simulada" else "Registrar medición",
+                                hint = measure.recordHint,
+                                onChangeLot = { showLotPicker = true },
+                                onRecord = {
+                                    // Se guarda lo que se mostro mientras siga vigente; si no, la lectura actual de la misma muestra.
+                                    val fresh = reading.takeIf { measure.now - it.timestamp <= MeasurementValidator.MAX_READING_AGE_MS }
+                                    recordsViewModel.recordMeasurement(fresh ?: measure.reading, measure.stability)
+                                }
+                            )
+                        }
+                        item {
+                            OutlinedButton(
+                                onClick = startMeasuring,
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Medir de nuevo") }
+                        }
+                    }
+                }
             }
 
             item {
@@ -212,6 +330,7 @@ fun MeasureScreen(
     if (showLotPicker) {
         LotPickerDialog(
             todayLots = records.todayLots,
+            tanks = records.activeTanks,
             currentLotId = records.currentLotId,
             saving = records.saving,
             onSelect = {
@@ -221,6 +340,91 @@ fun MeasureScreen(
             onCreate = { tank -> recordsViewModel.openTodayLot(tank) { showLotPicker = false } },
             onDismiss = { showLotPicker = false }
         )
+    }
+}
+
+private enum class MeasurePhase { IDLE, MEASURING, DONE }
+
+/** Inicio: un boton grande para realizar la medicion. */
+@Composable
+private fun StartMeasurementCard(
+    canStart: Boolean,
+    demo: Boolean,
+    lotName: String?,
+    onStart: () -> Unit,
+    onChangeLot: () -> Unit
+) {
+    Card(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Medir la muestra",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = if (demo) {
+                    "Pulse el botón para tomar una medición simulada. Cada medición sale distinta."
+                } else {
+                    "Ponga el sensor en la muestra y pulse el botón. Mantenga el sensor quieto hasta que termine."
+                },
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Button(
+                onClick = onStart,
+                enabled = canStart,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) { Text("Realizar medición", style = MaterialTheme.typography.titleMedium) }
+            if (!canStart) {
+                Text(
+                    text = "Conecte la caja de sensores para medir.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Lote: ${lotName ?: "sin lote elegido"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = onChangeLot) { Text(if (lotName == null) "Elegir lote" else "Cambiar lote") }
+            }
+        }
+    }
+}
+
+/** Avance mientras la lectura se estabiliza. */
+@Composable
+private fun MeasuringCard(samples: Int, required: Int, onCancel: () -> Unit) {
+    Card(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+                Text(
+                    text = "Midiendo la muestra…",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            LinearProgressIndicator(
+                progress = { if (required == 0) 0f else (samples.toFloat() / required).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "Lectura $samples de $required. Mantenga el sensor quieto en la muestra.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            TextButton(onClick = onCancel) { Text("Cancelar") }
+        }
     }
 }
 
@@ -319,37 +523,10 @@ private fun WaitingCard(state: MeasureUiState) {
     )
 }
 
-/** Antiguedad, estabilidad y origen de la lectura mostrada. */
-@OptIn(ExperimentalLayoutApi::class)
+/** Las 4 tarjetas de sensores en dos filas. El estado de cada una sale del analisis (por ejemplo "Dentro del rango"). */
 @Composable
-private fun ReadingStatusRow(state: MeasureUiState, reading: MilkQualityReading) {
-    val status = AppTheme.status
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        if (reading.isSimulated) SimulatedBadge()
-        if (state.stability.isStable) {
-            StatusPill("Lectura estable", status.good, icon = Icons.Outlined.CheckCircle)
-        } else {
-            StatusPill(
-                "Estabilizando ${state.stability.samples}/${state.stability.required}",
-                status.warning,
-                icon = Icons.Outlined.HourglassTop
-            )
-        }
-        val age = state.readingAgeSeconds ?: 0L
-        StatusPill(
-            text = if (age <= 1) "Recién leída" else "Hace $age s",
-            tone = if (state.isReadingFresh) status.info else status.alert
-        )
-    }
-}
-
-/** Las 4 tarjetas de sensores en dos filas. */
-@Composable
-private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges) {
+private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges, findings: List<ParameterFinding>) {
+    fun finding(p: Parameter) = findings.first { it.parameter == p }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             modifier = Modifier
@@ -357,17 +534,13 @@ private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges) {
                 .height(IntrinsicSize.Min),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            val tempStatus = reading.temperatureStatus
+            val temp = finding(Parameter.TEMPERATURE)
             SensorCard(
                 title = "Temperatura",
                 valueString = "%.1f".format(reading.temperature),
                 unit = "°C",
-                statusText = tempStatus.label,
-                status = when (tempStatus) {
-                    TemperatureStatus.COLD -> SensorStatus.GOOD
-                    TemperatureStatus.AMBIENT -> SensorStatus.WARNING
-                    TemperatureStatus.HIGH -> SensorStatus.ALERT
-                },
+                statusText = temp.statusText,
+                status = levelSensorStatus(temp.level),
                 icon = Icons.Default.Thermostat,
                 referenceRange = "≤ %.1f °C".format(ranges.tempMax),
                 progress = (reading.temperature / 30.0f).coerceIn(0f, 1f),
@@ -376,21 +549,13 @@ private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges) {
                     .weight(1f)
                     .fillMaxHeight()
             )
-            val phStatus = reading.phStatus
+            val ph = finding(Parameter.PH)
             SensorCard(
                 title = "pH",
                 valueString = "%.2f".format(reading.ph),
                 unit = "pH",
-                statusText = when (phStatus) {
-                    PhStatus.NORMAL -> "NORMAL"
-                    PhStatus.ACIDIC -> "ÁCIDO"
-                    PhStatus.ALKALINE -> "ALCALINO"
-                },
-                status = when (phStatus) {
-                    PhStatus.NORMAL -> SensorStatus.GOOD
-                    PhStatus.ACIDIC -> SensorStatus.ALERT
-                    PhStatus.ALKALINE -> SensorStatus.WARNING
-                },
+                statusText = ph.statusText,
+                status = levelSensorStatus(ph.level),
                 icon = Icons.Default.Science,
                 referenceRange = "%.2f – %.2f".format(ranges.phMin, ranges.phMax),
                 progress = ((reading.ph - 5.0f) / 4.0f).coerceIn(0f, 1f),
@@ -405,13 +570,13 @@ private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges) {
                 .height(IntrinsicSize.Min),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            val condOk = reading.conductivity in ranges.condMin..ranges.condMax
+            val cond = finding(Parameter.CONDUCTIVITY)
             SensorCard(
                 title = "Conductividad",
                 valueString = "%.2f".format(reading.conductivity),
                 unit = "mS/cm",
-                statusText = if (condOk) "NORMAL" else "REVISAR",
-                status = if (condOk) SensorStatus.GOOD else SensorStatus.WARNING,
+                statusText = cond.statusText,
+                status = levelSensorStatus(cond.level),
                 icon = Icons.Default.ElectricBolt,
                 referenceRange = "%.2f – %.2f".format(ranges.condMin, ranges.condMax),
                 progress = (reading.conductivity / 8.0f).coerceIn(0f, 1f),
@@ -419,13 +584,13 @@ private fun SensorGrid(reading: MilkQualityReading, ranges: QualityRanges) {
                     .weight(1f)
                     .fillMaxHeight()
             )
-            val turbOk = reading.turbidity >= ranges.turbMin
+            val turb = finding(Parameter.TURBIDITY)
             SensorCard(
                 title = "Turbidez",
                 valueString = "%.1f".format(reading.turbidity),
                 unit = "%",
-                statusText = if (turbOk) "OPACA" else "DILUIDA",
-                status = if (turbOk) SensorStatus.GOOD else SensorStatus.ALERT,
+                statusText = turb.statusText,
+                status = levelSensorStatus(turb.level),
                 icon = Icons.Default.WaterDrop,
                 referenceRange = "≥ %.1f %%".format(ranges.turbMin),
                 progress = (reading.turbidity / 100.0f).coerceIn(0f, 1f),

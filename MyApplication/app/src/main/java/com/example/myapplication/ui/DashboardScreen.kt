@@ -220,6 +220,11 @@ fun DashboardScreen(
                     }
                 }
 
+                // Supervision (encargado y administrador): estado por lote, lecheros, comparativas y resumen.
+                if (session.role.canViewAllHistory) item {
+                    SupervisionPanel(state = state, session = session, now = now, onOpenAlerts = onOpenAlerts)
+                }
+
                 val days = summary?.days.orEmpty()
                 if (days.isNotEmpty()) item {
                     TrendChart(
@@ -244,7 +249,7 @@ fun DashboardScreen(
                     )
                 }
 
-                val latest = state.recent.filter { state.dashboardOrigin.matches(it.isSimulated) }.take(RECENT_ON_PANEL)
+                val latest = state.recentValid.filter { state.dashboardOrigin.matches(it.isSimulated) }.take(RECENT_ON_PANEL)
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(

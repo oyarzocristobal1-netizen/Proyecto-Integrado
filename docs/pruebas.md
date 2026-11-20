@@ -5,7 +5,7 @@ hardware está listado al final como pendiente.
 
 ## 1. Cómo ejecutarlas
 
-**Pruebas unitarias (80)** — en la carpeta `MyApplication`:
+**Pruebas unitarias (220)** — en la carpeta `MyApplication`:
 
 ```
 .\gradlew test          (Windows)
@@ -15,7 +15,7 @@ hardware está listado al final como pendiente.
 El informe queda en `MyApplication/app/build/reports/tests/testDebugUnitTest/index.html`.
 En Android Studio también se pueden ejecutar con clic derecho sobre `app/src/test` → *Run Tests*.
 
-**Pruebas de las reglas de Firestore (26)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
+**Pruebas de las reglas de Firestore (81: 50 anteriores + 27 del CRUD ampliado y las eliminaciones + 4 de liberar lotes para venta)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
 no tocan la base real):
 
 ```
@@ -32,14 +32,25 @@ npm test
 | `model/AlertRulesTest` | 7 | Cuándo se genera cada alerta (temperatura, pH, conductividad, turbidez), su severidad y que respeta los rangos configurados |
 | `model/MeasurementValidatorTest` | 12 | Rechazo de valores no numéricos, infinitos, sensor desconectado (−127 °C), fuera de límites físicos, lecturas viejas, con hora futura o repetidas; nombre de estanque |
 | `model/StabilityTrackerTest` | 5 | La lectura solo es estable con 4 muestras parecidas; se reinicia al cambiar de muestra o de origen |
+| `model/DeletionRulesTest` | 7 | Solo el administrador elimina; alertas de una medición; tipos de alerta iguales a los que genera la app; grupos de 400 escrituras; texto de la bitácora dentro de los máximos; tipos iguales a los de las reglas |
+| `model/CrudRulesTest` | 9 | Validaciones de los formularios de administración (motivo de anulación 3–200, nota de alerta ≤300, nombre de dispositivo, nota de calibración), ID del dispositivo, parámetros de calibración iguales a los que aceptan las reglas, permisos nuevos por rol |
 | `model/RecordRulesTest` | 6 | ID de lote (fecha local + estanque sin tildes), dispositivo según el origen, origen desconocido = simulado |
 | `model/DashboardStatsTest` | 5 | Indicadores del panel: mediciones de hoy, % conforme, corte a medianoche en hora de Chile, promedios diarios, conteo de simuladas |
 | `sensor/SensorFrameParserTest` | 12 | Lector de tramas de la caja: formato `DATA:`, clave:valor, ciclo de 4 líneas, tramas incompletas o corruptas, coma decimal, `TURB` no se confunde con `T` |
-| `sensor/DemoReadingGeneratorTest` | 2 | Las lecturas del modo DEMO salen marcadas como simuladas y dentro de los límites |
-| `report/ReportWritersTest` | 7 | CSV (BOM, punto y coma, coma decimal), Excel y Word válidos, reporte vacío, caracteres especiales, resumen con advertencia de datos simulados |
+| `sensor/DemoReadingGeneratorTest` | 5 | Las lecturas del modo DEMO salen marcadas como simuladas y dentro de los límites; la muestra Variada cambia en cada medición e incluye casos buenos y alterados |
+| `report/ReportWritersTest` | 8 | CSV (BOM, punto y coma, coma decimal, neutralización de fórmulas), Excel y Word válidos, reporte vacío, caracteres especiales, resumen con advertencia de datos simulados |
 | `viewmodel/MeasureViewModelTest` | 10 | Pantalla Medir con una caja falsa: sin conexión no hay lecturas inventadas, lecturas de la caja solo en modo caja, registrar solo con lectura estable y reciente, desconexión al volver a DEMO, simulación solo con la pantalla visible, permiso de Bluetooth |
 | `viewmodel/RecordsUiStateTest` | 3 | Filtros del historial por origen y semáforo, contadores de pendientes de sincronizar y simuladas |
-| **Total** | **80** | |
+| `model/analysis/MilkAnalyzerTest` | 43 | Análisis inteligente: 1 a 4 parámetros alterados, niveles leve/moderado/crítico, prioridad, lecturas inválidas y contradictorias, historial (repetición, tendencias, sin historial), configuración y rotulado DEMO (ver `docs/analisis.md`) |
+| `model/analysis/LotAnalyzerTest` | 9 | Análisis por lote: orden por prioridad, no mezcla mediciones de otro lote, mediciones sin lote, mediciones atrasadas |
+| `model/analysis/ForecastTest` | 23 | Proyección: datos insuficientes, conductividad que sube o baja, temperatura que enfría, pH, turbidez, cambios lentos, tiempo sugerido para remedir |
+| `model/analysis/VerdictTest` | 11 | Veredicto (buena calidad, revisar, no usar hasta verificar), pasos, lectura dudosa, glosario, aviso flotante |
+| `model/analysis/ProgressAnalyzerTest` | 10 | Seguimiento: mejoró, empeoró o sin cambios respecto de la muestra anterior del lote |
+| `model/analysis/FindingTextTest` | 4 | Texto de estado de cada recuadro ("Dentro del rango", "Leve · alta", etc.) y que cabe en el recuadro |
+| `sensor/DemoAnalysisScenariosTest` | 2 | Los 7 escenarios DEMO nuevos producen el análisis esperado con 300 lecturas con ruido cada uno |
+| `model/SaleReleaseTest` | 8 | Liberar lote para venta: sugerencia según el veredicto, nota obligatoria al liberar contra el análisis o con medición atrasada, sin mediciones no se decide, límite de la nota |
+| `model/SupervisionTest` | 10 | Supervisión del encargado: agrupar por lechero o estanque, % conforme, promedios, conteo de simuladas, mediciones desde el inicio del día, texto del resumen diario (con aviso de SIMULADAS) |
+| **Total** | **220** | 179 verificados con Gradle el 20-11-2026 + 7 (textos de estado y aviso flotante) + 9 (CrudRulesTest) + 7 (DeletionRulesTest) + 8 (SaleReleaseTest) + 10 (SupervisionTest), por confirmar con `.\gradlew test --rerun-tasks` |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 
@@ -51,7 +62,18 @@ npm test
 | Mediciones | 9 | Medición + alerta en una escritura; dato simulado no puede pasar por sensor; límites físicos; hora del servidor; lote y caja existentes; inmutables; lectura según el rol |
 | Alertas | 4 | Requieren su medición, ID `medicion-tipo`, tipo y estado válidos; solo encargado/admin las atienden |
 | Rangos | 2 | Solo el admin guarda rangos coherentes; todos los usuarios activos los leen |
-| **Total** | **26** | |
+| Seguridad: eliminar solo el administrador | 5 | Encargado y lechero no borran nada; sin sesión, correo sin verificar o cuenta desactivada tampoco; el admin borra todo menos los rangos y su propio perfil; borrado disfrazado; medición + alertas + bitácora en una escritura (ver [seguridad.md](seguridad.md)) |
+| Bitácora de eliminaciones | 3 | Solo el admin anota y lee, con su nombre y hora del servidor; formato válido; no se edita ni se borra |
+| Seguridad: escalada de privilegios | 6 | Cambio de rol, cuentas sin perfil, administrador desactivado |
+| Seguridad: lectura de datos ajenos | 4 | Perfiles de otros, colecciones no definidas |
+| Seguridad: suplantación y datos manipulados | 8 | Nombres falsos, alertas ajenas o malformadas, campos extra |
+| Estanques (catálogo) | 4 | Solo encargado/admin crean y renombran; se desactivan; formato del nombre |
+| Cierre de lotes | 5 | Cerrar y reabrir deja quién y cuándo; un lote cerrado no admite mediciones; el lechero no puede cerrar |
+| Anular mediciones (baja lógica) | 6 | Solo encargado/admin; exige motivo (3–200), nombre propio y hora del servidor; no se tocan los valores medidos ni se desanula |
+| Liberar lote para venta | 4 | Solo encargado/admin deciden apto o no apto; exige quién y hora del servidor; nota ≤200; el lechero no puede; se puede cambiar la decisión |
+| Alertas atendidas con nota | 6 | Atender con nota opcional, quién y cuándo; editar solo la nota; el formato anterior sigue valiendo |
+| Dispositivos y calibraciones (admin) | 4 | Solo el admin; calibración con dispositivo existente, fecha del servidor y responsable; solo se corrige la nota |
+| **Total** | **81** | 29 nuevas aún sin ejecutar en el emulador (no se pudo descargar en el entorno de desarrollo): `npm test` en `firebase/tests` |
 
 ## 4. Resultados obtenidos
 
@@ -61,7 +83,11 @@ npm test
 | 10 pruebas de `MeasureViewModelTest` y 3 de `RecordsUiStateTest` | 13 correctas | Mismo entorno, con dobles mínimos de `ViewModel` y corrutinas |
 | Sintaxis de `firestore.rules` | Válida | Validador de reglas de Firebase |
 | Pruebas unitarias con `gradlew test` (Gradle 9.6.0) | BUILD SUCCESSFUL, sin fallas | Computador del equipo, 16-11-2026 |
-| 26 pruebas de reglas con el emulador (`npm test`) | 26 correctas, 0 fallidas | Computador del equipo, 16-11-2026 |
+| **81 pruebas unitarias** (total de los resultados XML de Gradle) | **81 correctas, 0 fallas**, BUILD SUCCESSFUL en 13 s | Computador del equipo, 16-11-2026 |
+| **133 pruebas unitarias** tras agregar el análisis inteligente (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **133 correctas, 0 fallas, 0 errores**, BUILD SUCCESSFUL en 15 s | Computador del equipo, 16-11-2026 |
+| **179 pruebas unitarias** tras la medición guiada y la proyección (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **179 correctas, 0 fallas**, BUILD SUCCESSFUL en 16 s | Computador del equipo, 20-11-2026 |
+| 26 pruebas de reglas originales con el emulador (`npm test`) | 26 correctas, 0 fallidas | Computador del equipo, 16-11-2026 (primera corrida, antes de endurecer las reglas) |
+| **50 pruebas de reglas** (26 + 24 de seguridad) con las reglas endurecidas | **50 correctas, 0 fallidas** (10 grupos, 6,8 s) | Computador del equipo, 16-11-2026 |
 | Compilación de la app y prueba en teléfono | Correcta (app instalada y usada en modo DEMO) | Android Studio y teléfono del equipo |
 
 
@@ -77,7 +103,7 @@ npm test
 | 5 | Cualquiera | Activar modo avión → registrar | Aviso "Sin conexión"; la medición queda "Sin sincronizar" y se sube al quitar el modo avión |
 | 6 | Encargado | Alertas → Marcar atendida → confirmar | Pasa a "ATENDIDA"; el contador baja |
 | 7 | Encargado | Historial → filtros lote / Sensor / Fuera de rango | La lista se filtra; "Quitar filtros" la restablece |
-| 8 | Encargado | Más → Reportes → 7 días → PDF y Excel | Si solo hay simuladas, pide activar "Incluir simuladas"; al activarlo, se comparte el archivo con la columna Origen |
+| 8 | Encargado | Más → Reportes → 7 días → PDF y Excel | Se comparte el archivo con la columna Origen; las mediciones simuladas salen marcadas como SIMULADAS y con advertencia en el resumen |
 | 9 | Admin | Más → Rangos → pH mínimo mayor que el máximo → Guardar | Mensaje de error, no se guarda |
 | 10 | Admin | Más → Gestión de usuarios → desactivar una cuenta | Pide confirmación; esa cuenta ya no puede ingresar |
 | 11 | Lechero | Revisar la pestaña Más | No aparecen Lotes, Reportes, Rangos ni Usuarios |

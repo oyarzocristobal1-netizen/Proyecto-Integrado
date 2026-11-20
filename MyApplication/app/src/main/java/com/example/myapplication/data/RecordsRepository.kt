@@ -5,6 +5,8 @@ import com.example.myapplication.model.MilkQualityReading
 import com.example.myapplication.model.QualityRanges
 import com.example.myapplication.model.ReadingSource
 import com.example.myapplication.model.RecordRules
+import com.example.myapplication.model.SaleDecision
+import com.example.myapplication.model.DeletionRules
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.model.detectAlerts
 import com.google.firebase.Timestamp
@@ -35,7 +37,24 @@ data class Lot(
     val date: Date,
     val createdBy: String,
     val createdByName: String,
-    val note: String
+    val note: String,
+    /** Lote cerrado: no admite mas mediciones (se puede reabrir). */
+    val closed: Boolean = false,
+    /** Quien lo cerro o reabrio por ultima vez (vacio si nunca se cambio). */
+    val stateByName: String = "",
+    val stateAt: Date? = null,
+    /** Decision del encargado: apto o no apto para venta (null si aun no se decide). */
+    val sale: SaleDecision? = null,
+    val saleNote: String = "",
+    val saleByName: String = "",
+    val saleAt: Date? = null
+)
+
+/** Estanque del catalogo (coleccion "estanques"). Se desactiva, no se borra. */
+data class Tank(
+    val id: String,
+    val name: String,
+    val active: Boolean
 )
 
 /** Medicion guardada (inmutable). */
@@ -56,12 +75,17 @@ data class SavedMeasurement(
     /** Simulada (modo DEMO) o tomada por el sensor. */
     val source: ReadingSource,
     /** true mientras la medicion esta solo en el telefono y aun no llega al servidor. */
-    val pendingSync: Boolean
+    val pendingSync: Boolean,
+    /** Anulada por el encargado: se conserva en el historial pero no cuenta en analisis ni reportes. */
+    val annulled: Boolean = false,
+    val annulReason: String = "",
+    val annulledByName: String = "",
+    val annulledAt: Date? = null
 ) {
     val isSimulated: Boolean get() = source == ReadingSource.SIMULATED
 }
 
-/** Alerta guardada (coleccion "alertas"). Solo el campo atendida se puede cambiar. */
+/** Alerta guardada (coleccion "alertas"). Solo se puede atender y escribir una nota. */
 data class MilkAlert(
     val id: String,
     val measurementId: String,
@@ -73,10 +97,17 @@ data class MilkAlert(
     val value: Double,
     val message: String,
     val milkerName: String,
-    val source: ReadingSource
+    val source: ReadingSource,
+    /** Nota de quien la atendio (que se hizo). */
+    val note: String = "",
+    val attendedByName: String = "",
+    val attendedAt: Date? = null
 ) {
     val isSimulated: Boolean get() = source == ReadingSource.SIMULATED
 }
+
+/** Resultado de crear un estanque. */
+enum class TankResult { CREATED, REACTIVATED, ALREADY_EXISTS }
 
 /** Resultado de registrar una medicion. */
 data class RecordResult(val measurementId: String, val alertCount: Int)
@@ -93,6 +124,7 @@ class RecordsRepository(
     private val measurements = db.collection("mediciones")
     private val alerts = db.collection("alertas")
     private val devices = db.collection("dispositivos")
+    private val tanks = db.collection("estanques")
     private val rangesDoc = db.collection("configuracion").document("rangos")
 
     // ------------------------------------------------------------------ lotes
@@ -148,6 +180,84 @@ class RecordsRepository(
                 "observacion" to note.trim()
             )
         ).await()
+    }
+
+    /**
+     * Cierra o reabre un lote (solo encargado y administrador). Queda quien lo hizo y cuando.
+     * Un lote cerrado no admite mediciones nuevas: lo exigen las reglas de Firestore.
+     */
+    suspend fun setLotClosed(lotId: String, closed: Boolean, session: UserSession) {
+        lots.document(lotId).update(
+            mapOf(
+                "cerrado" to closed,
+                "estadoPor" to session.name,
+                "estadoEn" to FieldValue.serverTimestamp()
+            )
+        ).await()
+    }
+
+    /**
+     * El encargado (o el administrador) decide si el lote es apto o no apto para venta, con una nota opcional.
+     * Queda quien lo decidio y cuando. Se puede volver a decidir.
+     */
+    suspend fun setLotSale(lotId: String, decision: SaleDecision, note: String, session: UserSession) {
+        val data = mutableMapOf<String, Any>(
+            "venta" to decision.id,
+            "ventaPor" to session.name,
+            "ventaEn" to FieldValue.serverTimestamp()
+        )
+        // Con nota vacia se borra la nota anterior (si la hubiera) para que no quede una explicacion vieja.
+        data["ventaNota"] = if (note.isBlank()) FieldValue.delete() else note.trim()
+        lots.document(lotId).update(data).await()
+    }
+
+    // --------------------------------------------------------------- estanques
+
+    /** Catalogo de estanques en tiempo real (activos primero, por nombre). */
+    fun listenTanks(
+        onChange: (List<Tank>) -> Unit,
+        onError: (Exception) -> Unit
+    ): ListenerRegistration =
+        tanks.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                onError(error)
+            } else if (snapshot != null) {
+                onChange(
+                    snapshot.documents.mapNotNull { it.toTank() }
+                        .sortedWith(compareByDescending<Tank> { it.active }.thenBy { it.name.lowercase() })
+                )
+            }
+        }
+
+    /**
+     * Crea un estanque (el nombre ya viene validado). El ID sale del nombre, asi no se duplica;
+     * si ya existe se rechaza, salvo que este desactivado (entonces se reactiva).
+     */
+    suspend fun createTank(name: String, session: UserSession): TankResult {
+        val clean = name.trim()
+        val id = RecordRules.slug(clean, "estanque")
+        val ref = tanks.document(id)
+        val existing = ref.get().await()
+        if (existing.exists()) {
+            return if (existing.getBoolean("activo") == false) {
+                ref.update(mapOf("nombre" to clean, "activo" to true)).await()
+                TankResult.REACTIVATED
+            } else {
+                TankResult.ALREADY_EXISTS
+            }
+        }
+        ref.set(
+            mapOf("nombre" to clean, "activo" to true, "creadoPor" to session.uid)
+        ).await()
+        return TankResult.CREATED
+    }
+
+    /**
+     * Cambia el nombre de un estanque o lo activa/desactiva. Los lotes ya creados conservan el
+     * nombre con el que se crearon.
+     */
+    suspend fun updateTank(id: String, name: String, active: Boolean) {
+        tanks.document(id).update(mapOf("nombre" to name.trim(), "activo" to active)).await()
     }
 
     // ------------------------------------------------------------ dispositivos
@@ -290,6 +400,21 @@ class RecordsRepository(
             }
     }
 
+    /**
+     * Anula una medicion (solo encargado y administrador): no se borra, queda marcada con el motivo,
+     * quien la anulo y cuando. Asi se conserva la trazabilidad ("nadie borra").
+     */
+    suspend fun annulMeasurement(measurementId: String, reason: String, session: UserSession) {
+        measurements.document(measurementId).update(
+            mapOf(
+                "anulada" to true,
+                "motivoAnulacion" to reason.trim(),
+                "anuladaPor" to session.name,
+                "anuladaEn" to FieldValue.serverTimestamp()
+            )
+        ).await()
+    }
+
     // ---------------------------------------------------------------- alertas
 
     /** Alertas en tiempo real: solo pendientes (consulta Q5) o todas las recientes. */
@@ -313,9 +438,40 @@ class RecordsRepository(
             }
     }
 
-    /** Marcar como atendida: la regla solo permite cambiar este campo (encargado y administrador). */
-    suspend fun markAlertAttended(alertId: String) {
-        alerts.document(alertId).update("atendida", true).await()
+    /**
+     * Marcar como atendida, con una nota opcional de lo que se hizo (encargado y administrador).
+     * Queda quien la atendio y cuando.
+     */
+    suspend fun markAlertAttended(alertId: String, note: String, session: UserSession) {
+        val data = mutableMapOf<String, Any>(
+            "atendida" to true,
+            "atendidaPor" to session.name,
+            "atendidaEn" to FieldValue.serverTimestamp()
+        )
+        if (note.isNotBlank()) data["nota"] = note.trim()
+        alerts.document(alertId).update(data).await()
+    }
+
+    /** Marca varias alertas como atendidas con la misma nota (una sola escritura atomica por grupo). */
+    suspend fun markAlertsAttended(alertIds: List<String>, note: String, session: UserSession) {
+        DeletionRules.chunk(alertIds).forEach { group ->
+            val batch = db.batch()
+            group.forEach { id ->
+                val data = mutableMapOf<String, Any>(
+                    "atendida" to true,
+                    "atendidaPor" to session.name,
+                    "atendidaEn" to FieldValue.serverTimestamp()
+                )
+                if (note.isNotBlank()) data["nota"] = note.trim()
+                batch.update(alerts.document(id), data)
+            }
+            batch.commit().await()
+        }
+    }
+
+    /** Corrige la nota de una alerta ya atendida. */
+    suspend fun updateAlertNote(alertId: String, note: String) {
+        alerts.document(alertId).update("nota", note.trim()).await()
     }
 
     // ---------------------------------------------------------------- reportes
@@ -335,7 +491,8 @@ class RecordsRepository(
             .limit(REPORT_LIMIT)
             // Solo del servidor: un reporte con la copia local podria quedar incompleto.
             .get(Source.SERVER).await()
-            .documents.mapNotNull { it.toMeasurement() }
+            // Las anuladas no cuentan en los reportes (siguen guardadas y visibles en el historial).
+            .documents.mapNotNull { it.toMeasurement() }.filterNot { it.annulled }
     }
 
     // ------------------------------------------------------------------ rangos
@@ -398,8 +555,16 @@ class RecordsRepository(
             value = getDouble("valor") ?: 0.0,
             message = getString("mensaje").orEmpty(),
             milkerName = getString("nombreLechero").orEmpty(),
-            source = ReadingSource.fromId(getString("origen"))
+            source = ReadingSource.fromId(getString("origen")),
+            note = getString("nota").orEmpty(),
+            attendedByName = getString("atendidaPor").orEmpty(),
+            attendedAt = getTimestamp("atendidaEn")?.toDate()
         )
+    }
+
+    private fun DocumentSnapshot.toTank(): Tank? {
+        val name = getString("nombre")?.takeIf { it.isNotBlank() } ?: return null
+        return Tank(id = id, name = name, active = getBoolean("activo") != false)
     }
 
     private fun DocumentSnapshot.toLot(): Lot? {
@@ -410,7 +575,14 @@ class RecordsRepository(
             date = date,
             createdBy = getString("creadoPor").orEmpty(),
             createdByName = getString("nombreCreador").orEmpty(),
-            note = getString("observacion").orEmpty()
+            note = getString("observacion").orEmpty(),
+            closed = getBoolean("cerrado") == true,
+            stateByName = getString("estadoPor").orEmpty(),
+            stateAt = getTimestamp("estadoEn")?.toDate(),
+            sale = SaleDecision.fromId(getString("venta")),
+            saleNote = getString("ventaNota").orEmpty(),
+            saleByName = getString("ventaPor").orEmpty(),
+            saleAt = getTimestamp("ventaEn")?.toDate()
         )
     }
 
@@ -435,7 +607,11 @@ class RecordsRepository(
             status = getString("resultado.estado").orEmpty(),
             title = getString("resultado.titulo").orEmpty(),
             source = ReadingSource.fromId(getString("origen")),
-            pendingSync = metadata.hasPendingWrites()
+            pendingSync = metadata.hasPendingWrites(),
+            annulled = getBoolean("anulada") == true,
+            annulReason = getString("motivoAnulacion").orEmpty(),
+            annulledByName = getString("anuladaPor").orEmpty(),
+            annulledAt = getTimestamp("anuladaEn")?.toDate()
         )
     }
 

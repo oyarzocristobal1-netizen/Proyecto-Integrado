@@ -12,6 +12,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,6 +46,8 @@ fun UserManagementScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showCreate by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ManagedUser?>(null) }
+    var toggling by remember { mutableStateOf<ManagedUser?>(null) }
+    var deleting by remember { mutableStateOf<ManagedUser?>(null) }
 
     LaunchedEffect(Unit) { viewModel.load() }
 
@@ -87,8 +93,8 @@ fun UserManagementScreen(
         ) {
             item {
                 Text(
-                    text = "Crea las cuentas del encargado y de los lecheros, cambia su rol o desactívalas. " +
-                        "Una cuenta desactivada no puede ingresar, pero sus mediciones se conservan.",
+                    text = "Crea las cuentas del encargado y de los lecheros, edita su nombre o rol, y desactívalas o actívalas. " +
+                        "Lo normal es desactivar: una cuenta desactivada no puede ingresar y sus mediciones se conservan. Eliminar es el último recurso.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -111,10 +117,14 @@ fun UserManagementScreen(
                 UserRow(
                     user = user,
                     isSelf = user.uid == session.uid,
-                    onClick = {
+                    busy = state.saving,
+                    onEdit = {
                         viewModel.clearFormError()
                         editing = user
-                    }
+                    },
+                    onToggleActive = { toggling = user },
+                    canDelete = session.role.canDeleteRecords && user.uid != session.uid,
+                    onDelete = { deleting = user }
                 )
             }
         }
@@ -128,6 +138,44 @@ fun UserManagementScreen(
             onCreate = { name, email, password, role ->
                 viewModel.createUser(name, email, password, role) { showCreate = false }
             }
+        )
+    }
+
+    deleting?.let { user ->
+        ConfirmDialog(
+            title = "¿Eliminar la cuenta?",
+            text = "Se elimina el perfil de ${user.name.ifBlank { user.email }}: ya no podrá usar la app. Sus mediciones " +
+                "se conservan con su nombre. Su cuenta de acceso sigue existiendo en Firebase Authentication (se " +
+                "borra desde la consola). Queda anotado en la bitácora. Lo normal es Desactivar.",
+            confirmLabel = "Eliminar",
+            destructive = true,
+            onConfirm = {
+                deleting = null
+                viewModel.deleteUser(user, session) {}
+            },
+            onDismiss = { deleting = null }
+        )
+    }
+
+    toggling?.let { user ->
+        val role = user.role
+        ConfirmDialog(
+            title = if (user.active) "¿Desactivar la cuenta?" else "¿Activar la cuenta?",
+            text = if (user.active) {
+                "${user.name.ifBlank { user.email }} no podrá ingresar a la app, pero sus mediciones y registros se conservan. " +
+                    "Puedes activarla de nuevo cuando quieras."
+            } else {
+                "${user.name.ifBlank { user.email }} podrá volver a ingresar con su correo y contraseña."
+            },
+            confirmLabel = if (user.active) "Desactivar" else "Activar",
+            destructive = user.active,
+            onConfirm = {
+                toggling = null
+                if (role != null) {
+                    viewModel.updateUser(user, user.name, role, !user.active) {}
+                }
+            },
+            onDismiss = { toggling = null }
         )
     }
 
@@ -147,16 +195,25 @@ fun UserManagementScreen(
 }
 
 @Composable
-private fun UserRow(user: ManagedUser, isSelf: Boolean, onClick: () -> Unit) {
+private fun UserRow(
+    user: ManagedUser,
+    isSelf: Boolean,
+    busy: Boolean,
+    onEdit: () -> Unit,
+    onToggleActive: () -> Unit,
+    canDelete: Boolean,
+    onDelete: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
+        modifier = Modifier.fillMaxWidth()
     ) {
+        Column {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .clickable(onClick = onEdit)
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -190,6 +247,50 @@ private fun UserRow(user: ManagedUser, isSelf: Boolean, onClick: () -> Unit) {
                     content = if (user.active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
                 )
             }
+        }
+        Row(
+            modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            TextButton(onClick = onEdit, enabled = !busy) {
+                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Editar")
+            }
+            // Una cuenta no puede desactivarse a si misma (las reglas tambien lo impiden).
+            if (!isSelf && user.role != null) {
+                if (user.active) {
+                    TextButton(onClick = onToggleActive, enabled = !busy) {
+                        Icon(
+                            Icons.Default.Block,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Desactivar", color = MaterialTheme.colorScheme.error)
+                    }
+                } else {
+                    TextButton(onClick = onToggleActive, enabled = !busy) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Activar")
+                    }
+                }
+            }
+            if (canDelete) {
+                TextButton(onClick = onDelete, enabled = !busy) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
         }
     }
 }
