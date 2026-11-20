@@ -38,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.myapplication.data.SavedMeasurement
+import com.example.myapplication.model.CrudRules
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.data.asAnalysisReading
 import com.example.myapplication.model.analysis.LotAnalyzer
@@ -45,6 +47,7 @@ import com.example.myapplication.ui.components.HistoricalAnalysisSection
 import com.example.myapplication.ui.components.EmptyState
 import com.example.myapplication.ui.components.OfflineBanner
 import com.example.myapplication.ui.components.SavedMeasurementRow
+import com.example.myapplication.ui.components.TextInputDialog
 import com.example.myapplication.ui.components.ScreenTitle
 import com.example.myapplication.ui.components.displayName
 import com.example.myapplication.viewmodel.OriginFilter
@@ -66,6 +69,7 @@ fun HistoryScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val canFilterLots = session.role.canViewAllHistory
     val shown = state.filteredHistory
+    var annulling by remember { mutableStateOf<SavedMeasurement?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -124,7 +128,7 @@ fun HistoryScreen(
             if (canFilterLots && state.history.isNotEmpty()) {
                 item {
                     val lotAnalyses = remember(state.history, state.ranges) {
-                        LotAnalyzer.analyze(state.history.map { it.asAnalysisReading() }, state.ranges)
+                        LotAnalyzer.analyze(state.historyValid.map { it.asAnalysisReading() }, state.ranges)
                     }
                     HistoricalAnalysisSection(items = lotAnalyses, lotName = { id -> state.lotName(id) })
                 }
@@ -171,7 +175,12 @@ fun HistoryScreen(
                     SavedMeasurementRow(
                         measurement = m,
                         lotName = state.lotName(m.lotId),
-                        showMilker = canFilterLots
+                        showMilker = canFilterLots,
+                        onAnnul = if (session.role.canAnnulMeasurements) {
+                            { annulling = m }
+                        } else {
+                            null
+                        }
                     )
                 }
             }
@@ -195,6 +204,24 @@ fun HistoryScreen(
                 }
             }
         }
+    }
+
+    annulling?.let { m ->
+        TextInputDialog(
+            title = "Anular medición",
+            description = "La medición no se borra: queda en el historial marcada como anulada, con tu nombre y el motivo, " +
+                "y deja de contar en el análisis, el panel y los reportes. No se puede deshacer.",
+            label = "Motivo",
+            placeholder = "Ej.: sensor mal puesto, se midió otro estanque",
+            initial = "",
+            maxLength = CrudRules.ANNUL_REASON_MAX,
+            confirmLabel = "Anular",
+            saving = state.saving,
+            validate = CrudRules::validateAnnulReason,
+            stateKey = m.id,
+            onConfirm = { reason -> viewModel.annulMeasurement(m, reason) { annulling = null } },
+            onDismiss = { annulling = null }
+        )
     }
 }
 

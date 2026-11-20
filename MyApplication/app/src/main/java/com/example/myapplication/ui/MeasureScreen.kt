@@ -130,7 +130,7 @@ fun MeasureScreen(
     val doneReading = result
     val lotId = records.currentLotId
     val previous = remember(records.recent, lotId) {
-        if (lotId == null) emptyList() else records.recent.map { it.asAnalysisReading() }
+        if (lotId == null) emptyList() else records.recentValid.map { it.asAnalysisReading() }
     }
     val analysis = remember(doneReading, previous, lotId, records.ranges) {
         doneReading?.let { MilkAnalyzer.analyze(it.toAnalysisReading(lotId), previous, records.ranges) }
@@ -330,6 +330,7 @@ fun MeasureScreen(
     if (showLotPicker) {
         LotPickerDialog(
             todayLots = records.todayLots,
+            tanks = records.activeTanks,
             currentLotId = records.currentLotId,
             saving = records.saving,
             onSelect = {

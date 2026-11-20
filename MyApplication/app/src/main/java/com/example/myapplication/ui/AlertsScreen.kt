@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,8 +40,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.myapplication.data.MilkAlert
 import com.example.myapplication.model.AlertSeverity
+import com.example.myapplication.model.CrudRules
 import com.example.myapplication.model.UserSession
-import com.example.myapplication.ui.components.ConfirmDialog
+import com.example.myapplication.ui.components.TextInputDialog
 import com.example.myapplication.ui.components.EmptyState
 import com.example.myapplication.ui.components.ScreenTitle
 import com.example.myapplication.ui.components.SimulatedBadge
@@ -59,7 +61,8 @@ fun AlertsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
-    var confirming by remember { mutableStateOf<MilkAlert?>(null) }
+    var attending by remember { mutableStateOf<MilkAlert?>(null) }
+    var editingNote by remember { mutableStateOf<MilkAlert?>(null) }
 
     Scaffold(
         modifier = modifier,
@@ -121,24 +124,46 @@ fun AlertsScreen(
                         lotName = state.lotName(alert.lotId),
                         dateText = dateFormat.format(alert.date),
                         canAttend = session.role.canAttendAlerts,
-                        onAttend = { confirming = alert }
+                        dateFormat = dateFormat,
+                        onAttend = { attending = alert },
+                        onEditNote = { editingNote = alert }
                     )
                 }
             }
         }
     }
 
-    confirming?.let { alert ->
-        ConfirmDialog(
-            title = "¿Marcar como atendida?",
-            text = "\"${alert.message}\"\n\nConfirma que revisaste la leche y tomaste una acción. " +
-                "Una alerta atendida no se puede volver a marcar como pendiente.",
+    attending?.let { alert ->
+        TextInputDialog(
+            title = "Marcar como atendida",
+            description = "\"${alert.message}\"\n\nConfirma que revisaste la leche y tomaste una acción. " +
+                "Puedes anotar qué se hizo (opcional). Una alerta atendida no vuelve a quedar pendiente.",
+            label = "Nota (opcional)",
+            placeholder = "Ej.: se enfrió el estanque y se volvió a medir",
+            initial = "",
+            maxLength = CrudRules.ALERT_NOTE_MAX,
             confirmLabel = "Marcar atendida",
-            onConfirm = {
-                viewModel.markAlertAttended(alert)
-                confirming = null
-            },
-            onDismiss = { confirming = null }
+            saving = state.saving,
+            validate = CrudRules::validateAlertNote,
+            stateKey = alert.id,
+            onConfirm = { note -> viewModel.markAlertAttended(alert, note) { attending = null } },
+            onDismiss = { attending = null }
+        )
+    }
+
+    editingNote?.let { alert ->
+        TextInputDialog(
+            title = "Nota de la alerta",
+            description = "Corrige lo que se anotó al atender esta alerta.",
+            label = "Nota",
+            initial = alert.note,
+            maxLength = CrudRules.ALERT_NOTE_MAX,
+            confirmLabel = "Guardar",
+            saving = state.saving,
+            validate = CrudRules::validateAlertNote,
+            stateKey = alert.id + "-nota",
+            onConfirm = { note -> viewModel.updateAlertNote(alert, note) { editingNote = null } },
+            onDismiss = { editingNote = null }
         )
     }
 }
@@ -149,7 +174,9 @@ private fun AlertRow(
     lotName: String,
     dateText: String,
     canAttend: Boolean,
-    onAttend: () -> Unit
+    dateFormat: SimpleDateFormat,
+    onAttend: () -> Unit,
+    onEditNote: () -> Unit
 ) {
     val status = AppTheme.status
     val (container, content) = when {
@@ -199,6 +226,27 @@ private fun AlertRow(
                 )
                 if (!alert.attended && canAttend) {
                     FilledTonalButton(onClick = onAttend) { Text("Marcar atendida") }
+                }
+                if (alert.attended && canAttend) {
+                    TextButton(onClick = onEditNote) { Text(if (alert.note.isBlank()) "Agregar nota" else "Editar nota") }
+                }
+            }
+            if (alert.attended) {
+                val who = alert.attendedByName.ifBlank { null }
+                val whenText = alert.attendedAt?.let { dateFormat.format(it) }
+                if (who != null || whenText != null) {
+                    Text(
+                        text = "Atendida" + (who?.let { " por $it" } ?: "") + (whenText?.let { " · $it" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = content
+                    )
+                }
+                if (alert.note.isNotBlank()) {
+                    Text(
+                        text = "Nota: ${alert.note}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = content
+                    )
                 }
             }
         }

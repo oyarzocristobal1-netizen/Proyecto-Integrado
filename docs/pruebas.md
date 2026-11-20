@@ -15,7 +15,7 @@ hardware está listado al final como pendiente.
 El informe queda en `MyApplication/app/build/reports/tests/testDebugUnitTest/index.html`.
 En Android Studio también se pueden ejecutar con clic derecho sobre `app/src/test` → *Run Tests*.
 
-**Pruebas de las reglas de Firestore (50)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
+**Pruebas de las reglas de Firestore (75: 50 anteriores + 25 del CRUD ampliado)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
 no tocan la base real):
 
 ```
@@ -32,6 +32,7 @@ npm test
 | `model/AlertRulesTest` | 7 | Cuándo se genera cada alerta (temperatura, pH, conductividad, turbidez), su severidad y que respeta los rangos configurados |
 | `model/MeasurementValidatorTest` | 12 | Rechazo de valores no numéricos, infinitos, sensor desconectado (−127 °C), fuera de límites físicos, lecturas viejas, con hora futura o repetidas; nombre de estanque |
 | `model/StabilityTrackerTest` | 5 | La lectura solo es estable con 4 muestras parecidas; se reinicia al cambiar de muestra o de origen |
+| `model/CrudRulesTest` | 9 | Validaciones de los formularios de administración (motivo de anulación 3–200, nota de alerta ≤300, nombre de dispositivo, nota de calibración), ID del dispositivo, parámetros de calibración iguales a los que aceptan las reglas, permisos nuevos por rol |
 | `model/RecordRulesTest` | 6 | ID de lote (fecha local + estanque sin tildes), dispositivo según el origen, origen desconocido = simulado |
 | `model/DashboardStatsTest` | 5 | Indicadores del panel: mediciones de hoy, % conforme, corte a medianoche en hora de Chile, promedios diarios, conteo de simuladas |
 | `sensor/SensorFrameParserTest` | 12 | Lector de tramas de la caja: formato `DATA:`, clave:valor, ciclo de 4 líneas, tramas incompletas o corruptas, coma decimal, `TURB` no se confunde con `T` |
@@ -46,7 +47,7 @@ npm test
 | `model/analysis/ProgressAnalyzerTest` | 10 | Seguimiento: mejoró, empeoró o sin cambios respecto de la muestra anterior del lote |
 | `model/analysis/FindingTextTest` | 4 | Texto de estado de cada recuadro ("Dentro del rango", "Leve · alta", etc.) y que cabe en el recuadro |
 | `sensor/DemoAnalysisScenariosTest` | 2 | Los 7 escenarios DEMO nuevos producen el análisis esperado con 300 lecturas con ruido cada uno |
-| **Total** | **186** | 179 verificados con Gradle el 20-11-2026 + 7 nuevas (textos de estado y aviso flotante), por confirmar |
+| **Total** | **195** | 179 verificados con Gradle el 20-11-2026 + 7 (textos de estado y aviso flotante) + 9 (CrudRulesTest), por confirmar con `.\gradlew test --rerun-tasks` |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 
@@ -62,7 +63,12 @@ npm test
 | Seguridad: escalada de privilegios | 6 | Cambio de rol, cuentas sin perfil, administrador desactivado |
 | Seguridad: lectura de datos ajenos | 4 | Perfiles de otros, colecciones no definidas |
 | Seguridad: suplantación y datos manipulados | 8 | Nombres falsos, alertas ajenas o malformadas, campos extra |
-| **Total** | **50** | |
+| Estanques (catálogo) | 4 | Solo encargado/admin crean y renombran; se desactivan, no se borran; formato del nombre |
+| Cierre de lotes | 5 | Cerrar y reabrir deja quién y cuándo; un lote cerrado no admite mediciones; el lechero no puede cerrar |
+| Anular mediciones (baja lógica) | 6 | Solo encargado/admin; exige motivo (3–200), nombre propio y hora del servidor; no se tocan los valores medidos ni se desanula |
+| Alertas atendidas con nota | 6 | Atender con nota opcional, quién y cuándo; editar solo la nota; el formato anterior sigue valiendo |
+| Dispositivos y calibraciones (admin) | 4 | Solo el admin; calibración con dispositivo existente, fecha del servidor y responsable; solo se corrige la nota |
+| **Total** | **75** | 25 nuevas aún sin ejecutar en el emulador (no se pudo descargar en el entorno de desarrollo): `npm test` en `firebase/tests` |
 
 ## 4. Resultados obtenidos
 

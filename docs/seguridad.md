@@ -31,7 +31,7 @@ inyección de fórmulas (los textos van como cadenas).
 
 | Amenaza | Prueba | Resultado esperado |
 |---|---|---|
-| Borrado por error o a propósito (admin, encargado o lechero) | `nadie borra datos`: intenta borrar un documento de cada una de las 7 colecciones con cada rol | Todo rechazado (21 intentos) |
+| Borrado por error o a propósito (admin, encargado o lechero) | `nadie borra datos`: intenta borrar un documento de cada una de las 8 colecciones con cada rol | Todo rechazado (24 intentos) |
 | Borrar sin sesión, con correo sin verificar o con cuenta desactivada | Mismo intento con esas tres identidades | Rechazado |
 | Borrado disfrazado (vaciar campos, sobrescribir, borrar en lote) | `deleteField`, `setDoc` sobre una medición existente, `batch.delete` | Rechazado |
 | Un lechero se sube el rol o se reactiva solo | `escalada de privilegios` | Rechazado |
@@ -52,6 +52,24 @@ inyección de fórmulas (los textos van como cadenas).
 
 Las 26 pruebas originales siguen vigentes (permisos, límites físicos, hora del servidor, simulado ≠ sensor,
 inmutabilidad). Con estas, el archivo tiene 50 pruebas de reglas.
+
+### 2.1 Altas, bajas lógicas y notas (CRUD ampliado)
+
+Toda baja es **lógica**: nada se borra (se mantiene la regla `delete: false` en todas las colecciones), y cada
+cambio deja quién lo hizo (con su nombre de perfil, no editable) y cuándo (hora del servidor).
+
+| Función | Quién | Qué guarda | Qué impiden las reglas |
+|---|---|---|---|
+| Estanques (catálogo) | Encargado y admin | `nombre`, `activo`, `creadoPor` | Borrar; cambiar otro campo; nombre vacío o de más de 40 caracteres |
+| Cerrar / reabrir lote | Encargado y admin | `cerrado`, `estadoPor`, `estadoEn` | Que lo haga un lechero; firmar con otro nombre; hora falsa; **medir en un lote cerrado** |
+| Anular medición | Encargado y admin | `anulada`, `motivoAnulacion` (3–200), `anuladaPor`, `anuladaEn` | Cambiar los valores medidos; anular sin motivo; desanular; anular dos veces |
+| Atender alerta con nota | Encargado y admin | `atendida`, `nota` (≤300, opcional), `atendidaPor`, `atendidaEn` | Reabrir la alerta; cambiar su valor o mensaje; después solo se edita la nota |
+| Dispositivos | Solo admin | `nombre`, `ubicacion`, `estado` | Borrar; campos extra |
+| Calibraciones | Solo admin | `idDispositivo`, `fecha`, `realizadaPor`, `parametro`, `nota` | Calibrar un dispositivo inexistente; fecha del teléfono; firmar con otro nombre; reescribirla (solo la nota) |
+
+Las mediciones anuladas siguen en el historial (marcadas ANULADA, con motivo y responsable) pero no cuentan en el
+análisis, el panel ni los reportes. Los documentos antiguos no cambian: todos los campos nuevos son opcionales
+(un lote sin `cerrado` se considera abierto).
 
 ## 3. Pruebas manuales de seguridad en el teléfono
 

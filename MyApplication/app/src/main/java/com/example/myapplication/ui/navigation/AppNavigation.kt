@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -46,6 +47,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.ui.AlertsScreen
+import com.example.myapplication.ui.DevicesScreen
 import com.example.myapplication.ui.DashboardScreen
 import com.example.myapplication.ui.HistoryScreen
 import com.example.myapplication.ui.LoginScreen
@@ -53,10 +55,12 @@ import com.example.myapplication.ui.LotsScreen
 import com.example.myapplication.ui.MeasureScreen
 import com.example.myapplication.ui.MoreScreen
 import com.example.myapplication.ui.RangesScreen
+import com.example.myapplication.ui.TanksScreen
 import com.example.myapplication.ui.ReportsScreen
 import com.example.myapplication.ui.UserManagementScreen
 import com.example.myapplication.viewmodel.AuthUiState
 import com.example.myapplication.viewmodel.AuthViewModel
+import com.example.myapplication.viewmodel.DevicesViewModel
 import com.example.myapplication.viewmodel.MeasureMode
 import com.example.myapplication.viewmodel.MeasureViewModel
 import com.example.myapplication.viewmodel.RecordsViewModel
@@ -74,6 +78,8 @@ object Routes {
     const val REPORTS = "reportes"
     const val RANGES = "rangos"
     const val USERS = "usuarios"
+    const val TANKS = "estanques"
+    const val DEVICES = "dispositivos"
 }
 
 /** Pestañas de la barra inferior: las mismas para todos los roles (cada pantalla filtra por rol). */
@@ -235,6 +241,8 @@ private fun MainScaffold(
                     viewModel = recordsViewModel,
                     session = session,
                     onOpenLots = { navController.navigate(Routes.LOTS) },
+                    onOpenTanks = { navController.navigate(Routes.TANKS) },
+                    onOpenDevices = { navController.navigate(Routes.DEVICES) },
                     onOpenReports = { navController.navigate(Routes.REPORTS) },
                     onOpenRanges = { navController.navigate(Routes.RANGES) },
                     onOpenUsers = { navController.navigate(Routes.USERS) },
@@ -245,6 +253,20 @@ private fun MainScaffold(
             if (role.canEditLots) {
                 composable(Routes.LOTS) {
                     LotsScreen(viewModel = recordsViewModel, onBack = { navController.popBackStack() })
+                }
+            }
+            if (role.canManageTanks) {
+                composable(Routes.TANKS) {
+                    TanksScreen(viewModel = recordsViewModel, onBack = { navController.popBackStack() })
+                }
+            }
+            if (role.canCalibrateDevice) {
+                composable(Routes.DEVICES) {
+                    DevicesScreen(
+                        viewModel = viewModel(factory = DevicesViewModel.Factory),
+                        session = session,
+                        onBack = { navController.popBackStack() }
+                    )
                 }
             }
             if (role.canExportReports) {

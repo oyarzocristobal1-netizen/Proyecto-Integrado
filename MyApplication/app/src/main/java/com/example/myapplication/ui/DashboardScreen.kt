@@ -244,7 +244,7 @@ fun DashboardScreen(
                     )
                 }
 
-                val latest = state.recent.filter { state.dashboardOrigin.matches(it.isSimulated) }.take(RECENT_ON_PANEL)
+                val latest = state.recentValid.filter { state.dashboardOrigin.matches(it.isSimulated) }.take(RECENT_ON_PANEL)
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(

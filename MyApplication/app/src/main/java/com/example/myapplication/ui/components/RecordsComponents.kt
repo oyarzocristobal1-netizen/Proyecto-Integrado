@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.Lot
 import com.example.myapplication.data.SavedMeasurement
+import com.example.myapplication.data.Tank
 import com.example.myapplication.model.MeasurementValidator
 import com.example.myapplication.ui.theme.AppTheme
 import com.example.myapplication.ui.theme.StatusTone
@@ -63,7 +64,7 @@ private val dayTime = SimpleDateFormat("dd/MM · HH:mm", Locale.getDefault())
 private val dayOnly = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
 
 /** Nombre del lote con su fecha, para listas y menus. */
-fun Lot.displayName(): String = "$tank · ${dayOnly.format(date)}"
+fun Lot.displayName(): String = "$tank · ${dayOnly.format(date)}" + if (closed) " (cerrado)" else ""
 
 /** Texto del semaforo guardado en Firestore. */
 fun statusLabel(status: String): String = when (status) {
@@ -153,6 +154,8 @@ fun CurrentLotCard(
 @Composable
 fun LotPickerDialog(
     todayLots: List<Lot>,
+    /** Estanques activos del catalogo. Si esta vacio, se escribe el nombre a mano. */
+    tanks: List<Tank>,
     currentLotId: String?,
     saving: Boolean,
     onSelect: (String) -> Unit,
@@ -160,6 +163,7 @@ fun LotPickerDialog(
     onDismiss: () -> Unit
 ) {
     var tank by rememberSaveable { mutableStateOf("") }
+    val useCatalog = tanks.isNotEmpty()
     val tankError = if (tank.isBlank()) null else MeasurementValidator.validateTankName(tank)
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
@@ -201,17 +205,38 @@ fun LotPickerDialog(
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text("Nuevo lote", style = MaterialTheme.typography.labelLarge)
-                OutlinedTextField(
-                    value = tank,
-                    onValueChange = { if (it.length <= 40) tank = it },
-                    label = { Text("Estanque") },
-                    placeholder = { Text("Ej.: Estanque 1") },
-                    singleLine = true,
-                    enabled = !saving,
-                    isError = tankError != null,
-                    supportingText = { Text(tankError ?: "${tank.trim().length}/40") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (useCatalog) {
+                    tanks.forEach { t ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = tank == t.name,
+                                    enabled = !saving,
+                                    role = Role.RadioButton,
+                                    onClick = { tank = t.name }
+                                )
+                                .padding(vertical = 2.dp)
+                        ) {
+                            RadioButton(selected = tank == t.name, onClick = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(t.name, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = tank,
+                        onValueChange = { if (it.length <= 40) tank = it },
+                        label = { Text("Estanque") },
+                        placeholder = { Text("Ej.: Estanque 1") },
+                        singleLine = true,
+                        enabled = !saving,
+                        isError = tankError != null,
+                        supportingText = { Text(tankError ?: "${tank.trim().length}/40") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 Text(
                     "Se crea un lote por estanque y día. Si ya existe, se usa el mismo.",
                     style = MaterialTheme.typography.bodySmall,
@@ -253,13 +278,21 @@ private fun SensorValueChip(icon: ImageVector, tone: StatusTone, text: String) {
 fun SavedMeasurementRow(
     measurement: SavedMeasurement,
     lotName: String,
-    showMilker: Boolean
+    showMilker: Boolean,
+    /** Si se entrega, se muestra el boton "Anular" (solo encargado y administrador). */
+    onAnnul: (() -> Unit)? = null
 ) {
     val status = AppTheme.status
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (measurement.annulled) {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLowest
+            }
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (measurement.annulled) 0.dp else 2.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -273,7 +306,11 @@ fun SavedMeasurementRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                StatusPill(statusLabel(measurement.status), status.forStatus(measurement.status))
+                if (measurement.annulled) {
+                    StatusPill("ANULADA", status.alert)
+                } else {
+                    StatusPill(statusLabel(measurement.status), status.forStatus(measurement.status))
+                }
                 if (measurement.isSimulated) SimulatedBadge()
                 if (measurement.pendingSync) PendingSyncBadge()
             }
@@ -300,6 +337,25 @@ fun SavedMeasurementRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+            if (measurement.annulled) {
+                Text(
+                    text = buildString {
+                        append("Anulada")
+                        if (measurement.annulledByName.isNotBlank()) append(" por ${measurement.annulledByName}")
+                        measurement.annulledAt?.let { append(" el ${dayTime.format(it)}") }
+                        append(". No cuenta en análisis ni reportes.")
+                        if (measurement.annulReason.isNotBlank()) append("\nMotivo: ${measurement.annulReason}")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else if (onAnnul != null) {
+                TextButton(
+                    onClick = onAnnul,
+                    enabled = !measurement.pendingSync,
+                    modifier = Modifier.align(Alignment.End)
+                ) { Text("Anular medición", color = MaterialTheme.colorScheme.error) }
             }
         }
     }

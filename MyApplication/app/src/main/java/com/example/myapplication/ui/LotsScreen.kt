@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.Lot
 import com.example.myapplication.model.MeasurementValidator
+import com.example.myapplication.ui.components.ConfirmDialog
 import com.example.myapplication.ui.components.ScreenTitle
 import com.example.myapplication.ui.components.StatusPill
 import com.example.myapplication.ui.theme.AppTheme
@@ -34,6 +35,7 @@ fun LotsScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var editing by remember { mutableStateOf<Lot?>(null) }
+    var togglingClosed by remember { mutableStateOf<Lot?>(null) }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
 
     Scaffold(
@@ -59,7 +61,8 @@ fun LotsScreen(
         ) {
             item {
                 Text(
-                    "Toca un lote para corregir el estanque o agregar una observación. Los lotes no se borran.",
+                    "Toca un lote para corregir el estanque, agregar una observación o cerrarlo. " +
+                        "Un lote cerrado no admite mediciones nuevas (se puede reabrir). Los lotes no se borran.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -89,7 +92,9 @@ fun LotsScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(lot.tank, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                if (lot.id == state.currentLotId) {
+                                if (lot.closed) {
+                                    StatusPill("CERRADO", AppTheme.status.info)
+                                } else if (lot.id == state.currentLotId) {
                                     StatusPill("ACTIVO", AppTheme.status.good)
                                 }
                             }
@@ -100,6 +105,13 @@ fun LotsScreen(
                             )
                             if (lot.note.isNotBlank()) {
                                 Text(lot.note, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (lot.closed && lot.stateByName.isNotBlank()) {
+                                Text(
+                                    "Cerrado por ${lot.stateByName}" + (lot.stateAt?.let { " · ${dateFormat.format(it)}" } ?: ""),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                         Icon(Icons.Default.Edit, contentDescription = "Editar lote")
@@ -151,6 +163,11 @@ fun LotsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    OutlinedButton(
+                        onClick = { togglingClosed = lot },
+                        enabled = !state.saving,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (lot.closed) "Reabrir lote" else "Cerrar lote") }
                 }
             },
             confirmButton = {
@@ -162,6 +179,26 @@ fun LotsScreen(
             dismissButton = {
                 TextButton(onClick = { editing = null }, enabled = !state.saving) { Text("Cancelar") }
             }
+        )
+    }
+
+    togglingClosed?.let { lot ->
+        ConfirmDialog(
+            title = if (lot.closed) "¿Reabrir el lote?" else "¿Cerrar el lote?",
+            text = if (lot.closed) {
+                "Se podrán registrar mediciones nuevas en ${lot.tank}."
+            } else {
+                "Ya no se podrán registrar mediciones en ${lot.tank} de este día. " +
+                    "Las mediciones guardadas se conservan y el lote se puede reabrir."
+            },
+            confirmLabel = if (lot.closed) "Reabrir" else "Cerrar lote",
+            onConfirm = {
+                viewModel.setLotClosed(lot, !lot.closed) {
+                    togglingClosed = null
+                    editing = null
+                }
+            },
+            onDismiss = { togglingClosed = null }
         )
     }
 }

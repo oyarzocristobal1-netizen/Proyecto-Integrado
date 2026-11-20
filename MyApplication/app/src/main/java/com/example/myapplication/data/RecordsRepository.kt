@@ -452,7 +452,8 @@ class RecordsRepository(
             .limit(REPORT_LIMIT)
             // Solo del servidor: un reporte con la copia local podria quedar incompleto.
             .get(Source.SERVER).await()
-            .documents.mapNotNull { it.toMeasurement() }
+            // Las anuladas no cuentan en los reportes (siguen guardadas y visibles en el historial).
+            .documents.mapNotNull { it.toMeasurement() }.filterNot { it.annulled }
     }
 
     // ------------------------------------------------------------------ rangos
