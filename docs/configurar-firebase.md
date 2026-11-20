@@ -158,8 +158,8 @@ y CSV**, uno o varios a la vez. La app genera los archivos en el teléfono y abr
 (correo, WhatsApp, Drive…). Incluyen un resumen (cantidad, semáforo en %, promedios) y la tabla de mediciones
 con la columna **Origen**.
 
-- Por defecto incluyen **solo mediciones reales**. Con el interruptor "Incluir simuladas" se agregan las del modo
-  DEMO, marcadas como "Simulada" en cada fila y con una advertencia en el resumen.
+- Incluyen todas las mediciones del periodo (menos las anuladas). Las del modo DEMO salen marcadas como "Simulada"
+  en cada fila y con una advertencia en el resumen, para que nunca se confundan con mediciones reales del sensor.
 - Leen las mediciones **directamente del servidor** (consulta Q4; con lote usa el índice `idLote` + `fechaHora`),
   así que necesitan internet: un reporte hecho con la copia del teléfono podría quedar incompleto.
 

@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,16 +16,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -74,13 +79,6 @@ fun TanksScreen(
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { creating = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Nuevo estanque") }
-            )
         }
     ) { innerPadding ->
         LazyColumn(
@@ -89,7 +87,7 @@ fun TanksScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(bottom = 96.dp)
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             item {
                 Text(
@@ -98,6 +96,17 @@ fun TanksScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            item {
+                Button(
+                    onClick = { creating = true },
+                    enabled = !state.saving,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Nuevo estanque")
+                }
             }
             if (state.tanks.isEmpty()) {
                 item {
@@ -117,12 +126,11 @@ fun TanksScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        modifier = Modifier.padding(start = 14.dp, top = 12.dp, end = 8.dp, bottom = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(tank.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             if (tank.active) {
                                 StatusPill("ACTIVO", AppTheme.status.good)
@@ -130,16 +138,31 @@ fun TanksScreen(
                                 StatusPill("DESACTIVADO", AppTheme.status.warning)
                             }
                         }
-                        IconButton(onClick = { renaming = tank }, enabled = !state.saving) {
-                            Icon(Icons.Default.Edit, contentDescription = "Renombrar ${tank.name}")
-                        }
-                        Switch(
-                            checked = tank.active,
-                            enabled = !state.saving,
-                            onCheckedChange = { on ->
-                                if (on) viewModel.setTankActive(tank, true) else deactivating = tank
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick = { renaming = tank }, enabled = !state.saving) {
+                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Renombrar")
                             }
-                        )
+                            if (tank.active) {
+                                TextButton(onClick = { deactivating = tank }, enabled = !state.saving) {
+                                    Icon(
+                                        Icons.Default.Block,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Desactivar", color = MaterialTheme.colorScheme.error)
+                                }
+                            } else {
+                                TextButton(onClick = { viewModel.setTankActive(tank, true) }, enabled = !state.saving) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Activar")
+                                }
+                            }
+                        }
                     }
                 }
             }

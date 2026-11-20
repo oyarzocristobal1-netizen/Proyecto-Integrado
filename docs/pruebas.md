@@ -98,7 +98,7 @@ npm test
 | 5 | Cualquiera | Activar modo avión → registrar | Aviso "Sin conexión"; la medición queda "Sin sincronizar" y se sube al quitar el modo avión |
 | 6 | Encargado | Alertas → Marcar atendida → confirmar | Pasa a "ATENDIDA"; el contador baja |
 | 7 | Encargado | Historial → filtros lote / Sensor / Fuera de rango | La lista se filtra; "Quitar filtros" la restablece |
-| 8 | Encargado | Más → Reportes → 7 días → PDF y Excel | Si solo hay simuladas, pide activar "Incluir simuladas"; al activarlo, se comparte el archivo con la columna Origen |
+| 8 | Encargado | Más → Reportes → 7 días → PDF y Excel | Se comparte el archivo con la columna Origen; las mediciones simuladas salen marcadas como SIMULADAS y con advertencia en el resumen |
 | 9 | Admin | Más → Rangos → pH mínimo mayor que el máximo → Guardar | Mensaje de error, no se guarda |
 | 10 | Admin | Más → Gestión de usuarios → desactivar una cuenta | Pide confirmación; esa cuenta ya no puede ingresar |
 | 11 | Lechero | Revisar la pestaña Más | No aparecen Lotes, Reportes, Rangos ni Usuarios |
