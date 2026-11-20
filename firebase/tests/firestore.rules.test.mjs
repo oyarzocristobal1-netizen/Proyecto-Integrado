@@ -55,6 +55,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'usuarios', 'encargadoInactivo'), usuario('encargado', false));
     await setDoc(doc(db, 'calibraciones', 'cal-1'), { idDispositivo: 'caja-01', fecha: Timestamp.now() });
     await setDoc(doc(db, 'configuracion', 'rangos'), { tempMax: 4, phMin: 6.6, phMax: 6.8, condMin: 4, condMax: 5.5, turbMin: 50 });
+    await setDoc(doc(db, 'estanques', 'est-1'), { nombre: 'Estanque 1', activo: true, creadoPor: 'encargado' });
     await setDoc(doc(db, 'dispositivos', 'simulador'), { nombre: 'Simulador', ubicacion: 'App', estado: 'activo' });
     await setDoc(doc(db, 'dispositivos', 'caja-01'), { nombre: 'Caja 1', ubicacion: 'Sala', estado: 'activo' });
     await setDoc(doc(db, 'lotes', LOTE), {
@@ -264,6 +265,7 @@ const DOCUMENTOS = [
   ['mediciones', 'existente'],
   ['alertas', 'existente-ph'],
   ['calibraciones', 'cal-1'],
+  ['estanques', 'est-1'],
   ['configuracion', 'rangos'],
 ];
 
@@ -431,3 +433,180 @@ describe('seguridad: suplantacion y datos manipulados', () => {
     await assertFails(updateDoc(doc(como('lechero'), 'lotes', LOTE), { estanque: 'Otro' }));
   });
 });
+
+// ---------------------------------------------------------------- CRUD ampliado
+
+describe('estanques (catalogo)', () => {
+  const estanque = (cambios = {}) => ({ nombre: 'Estanque 2', activo: true, creadoPor: 'encargado', ...cambios });
+
+  test('encargado y administrador crean estanques; el lechero no', async () => {
+    await assertSucceeds(setDoc(doc(como('encargado'), 'estanques', 'est-2'), estanque()));
+    await assertSucceeds(setDoc(doc(como('admin'), 'estanques', 'est-3'), estanque({ nombre: 'Estanque 3', creadoPor: 'admin' })));
+    await assertFails(setDoc(doc(como('lechero'), 'estanques', 'est-4'), estanque({ creadoPor: 'lechero' })));
+  });
+  test('rechaza nombres vacios o muy largos, campos extra y creacion a nombre de otro', async () => {
+    const db = como('encargado');
+    await assertFails(setDoc(doc(db, 'estanques', 'a'), estanque({ nombre: '' })));
+    await assertFails(setDoc(doc(db, 'estanques', 'b'), estanque({ nombre: 'x'.repeat(41) })));
+    await assertFails(setDoc(doc(db, 'estanques', 'c'), estanque({ extra: 1 })));
+    await assertFails(setDoc(doc(db, 'estanques', 'd'), estanque({ creadoPor: 'admin' })));
+    await assertFails(setDoc(doc(db, 'estanques', 'e'), estanque({ activo: false })));
+  });
+  test('se edita el nombre y se desactiva (no se borra); no se cambia quien lo creo', async () => {
+    const db = como('encargado');
+    await assertSucceeds(updateDoc(doc(db, 'estanques', 'est-1'), { nombre: 'Estanque principal' }));
+    await assertSucceeds(updateDoc(doc(db, 'estanques', 'est-1'), { activo: false }));
+    await assertFails(updateDoc(doc(db, 'estanques', 'est-1'), { creadoPor: 'admin' }));
+    await assertFails(updateDoc(doc(db, 'estanques', 'est-1'), { activo: 'no' }));
+    await assertFails(updateDoc(doc(como('lechero'), 'estanques', 'est-1'), { activo: false }));
+  });
+  test('todos los usuarios activos leen el catalogo; los desactivados no', async () => {
+    await assertSucceeds(getDoc(doc(como('lechero'), 'estanques', 'est-1')));
+    await assertFails(getDoc(doc(como('inactivo'), 'estanques', 'est-1')));
+  });
+});
+
+describe('cierre de lotes', () => {
+  const cierre = (nombre = 'encargado', cambios = {}) => ({ cerrado: true, estadoPor: nombre, estadoEn: serverTimestamp(), ...cambios });
+
+  test('encargado y administrador cierran y reabren un lote', async () => {
+    await assertSucceeds(updateDoc(doc(como('encargado'), 'lotes', LOTE), cierre()));
+    await assertSucceeds(updateDoc(doc(como('admin'), 'lotes', LOTE), cierre('admin', { cerrado: false })));
+  });
+  test('el lechero no cierra lotes', async () => {
+    await assertFails(updateDoc(doc(como('lechero'), 'lotes', LOTE), cierre('lechero')));
+  });
+  test('el cierre exige quien lo hizo (con su nombre) y la hora del servidor', async () => {
+    const db = como('encargado');
+    await assertFails(updateDoc(doc(db, 'lotes', LOTE), { cerrado: true }));
+    await assertFails(updateDoc(doc(db, 'lotes', LOTE), cierre('admin')));
+    await assertFails(updateDoc(doc(db, 'lotes', LOTE), cierre('encargado', { estadoEn: Timestamp.now() })));
+    await assertFails(updateDoc(doc(db, 'lotes', LOTE), cierre('encargado', { cerrado: 'si' })));
+  });
+  test('un lote cerrado no recibe mediciones y al reabrirlo vuelve a recibirlas', async () => {
+    await assertSucceeds(updateDoc(doc(como('encargado'), 'lotes', LOTE), cierre()));
+    await assertFails(setDoc(doc(como('lechero'), 'mediciones', 'cerrada-1'), medicion()));
+    await assertSucceeds(updateDoc(doc(como('encargado'), 'lotes', LOTE), cierre('encargado', { cerrado: false })));
+    await assertSucceeds(setDoc(doc(como('lechero'), 'mediciones', 'abierta-1'), medicion()));
+  });
+  test('cerrar un lote no permite cambiar quien lo creo ni su fecha', async () => {
+    await assertFails(updateDoc(doc(como('encargado'), 'lotes', LOTE), cierre('encargado', { creadoPor: 'encargado' })));
+    await assertFails(updateDoc(doc(como('encargado'), 'lotes', LOTE), cierre('encargado', { fecha: Timestamp.now() })));
+  });
+});
+
+describe('anular mediciones (baja logica)', () => {
+  const anular = (nombre = 'encargado', cambios = {}) => ({
+    anulada: true, motivoAnulacion: 'Sensor fuera de la muestra', anuladaPor: nombre, anuladaEn: serverTimestamp(), ...cambios,
+  });
+
+  test('encargado y administrador anulan una medicion con motivo', async () => {
+    await assertSucceeds(updateDoc(doc(como('encargado'), 'mediciones', 'existente'), anular()));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'mediciones', 'otra'), medicion({ registradoEn: Timestamp.now() }));
+    });
+    await assertSucceeds(updateDoc(doc(como('admin'), 'mediciones', 'otra'), anular('admin')));
+  });
+  test('el lechero no anula, ni siquiera su propia medicion', async () => {
+    await assertFails(updateDoc(doc(como('lechero'), 'mediciones', 'existente'), anular('lechero')));
+  });
+  test('exige motivo de al menos 3 caracteres, quien la anulo y la hora del servidor', async () => {
+    const db = como('encargado');
+    await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), anular('encargado', { motivoAnulacion: 'ok' })));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), anular('encargado', { motivoAnulacion: 'x'.repeat(201) })));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), anular('admin')));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), anular('encargado', { anuladaEn: Timestamp.now() })));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), { anulada: true }));
+  });
+  test('anular no permite cambiar los datos medidos ni otros campos', async () => {
+    const db = como('encargado');
+    await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), anular('encargado', { 'sensores.ph': 6.5 })));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), anular('encargado', { uidLechero: 'encargado' })));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), anular('encargado', { idLote: 'otro' })));
+  });
+  test('no se anula dos veces ni se deshace la anulacion', async () => {
+    const db = como('encargado');
+    await assertSucceeds(updateDoc(doc(db, 'mediciones', 'existente'), anular()));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), anular('encargado', { motivoAnulacion: 'Otro motivo' })));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'existente'), { anulada: false }));
+  });
+  test('no se crea una medicion ya anulada y sigue sin poder borrarse', async () => {
+    await assertFails(setDoc(doc(como('lechero'), 'mediciones', 'nueva'), medicion({ anulada: true })));
+    await assertFails(deleteDoc(doc(como('admin'), 'mediciones', 'existente')));
+  });
+});
+
+describe('alertas atendidas con nota', () => {
+  const atender = (nombre = 'encargado', cambios = {}) => ({
+    atendida: true, nota: 'Se revisó el estanque', atendidaPor: nombre, atendidaEn: serverTimestamp(), ...cambios,
+  });
+
+  test('el encargado atiende con nota, quien y cuando', async () => {
+    await assertSucceeds(updateDoc(doc(como('encargado'), 'alertas', 'existente-ph'), atender()));
+  });
+  test('la nota es opcional', async () => {
+    const { nota, ...sinNota } = atender();
+    await assertSucceeds(updateDoc(doc(como('admin'), 'alertas', 'existente-ph'), { ...sinNota, atendidaPor: 'admin' }));
+  });
+  test('el lechero no atiende', async () => {
+    await assertFails(updateDoc(doc(como('lechero'), 'alertas', 'existente-ph'), atender('lechero')));
+  });
+  test('rechaza notas gigantes, quien falso, hora falsa o falta de datos', async () => {
+    const db = como('encargado');
+    await assertFails(updateDoc(doc(db, 'alertas', 'existente-ph'), atender('encargado', { nota: 'x'.repeat(301) })));
+    await assertFails(updateDoc(doc(db, 'alertas', 'existente-ph'), atender('admin')));
+    await assertFails(updateDoc(doc(db, 'alertas', 'existente-ph'), atender('encargado', { atendidaEn: Timestamp.now() })));
+    await assertFails(updateDoc(doc(db, 'alertas', 'existente-ph'), { atendida: true, nota: 'sin quien ni cuando' }));
+    await assertFails(updateDoc(doc(db, 'alertas', 'existente-ph'), atender('encargado', { severidad: 'media' })));
+  });
+  test('despues de atendida se edita solo la nota; no se reabre', async () => {
+    const db = como('encargado');
+    await assertSucceeds(updateDoc(doc(db, 'alertas', 'existente-ph'), atender()));
+    await assertSucceeds(updateDoc(doc(db, 'alertas', 'existente-ph'), { nota: 'Nota corregida' }));
+    await assertFails(updateDoc(doc(db, 'alertas', 'existente-ph'), { nota: 'x'.repeat(301) }));
+    await assertFails(updateDoc(doc(db, 'alertas', 'existente-ph'), { nota: 'ok', atendidaPor: 'admin' }));
+    await assertFails(updateDoc(doc(db, 'alertas', 'existente-ph'), { atendida: false }));
+    await assertFails(updateDoc(doc(como('lechero'), 'alertas', 'existente-ph'), { nota: 'x' }));
+  });
+  test('no se edita la nota de una alerta que aun no esta atendida', async () => {
+    await assertFails(updateDoc(doc(como('encargado'), 'alertas', 'existente-ph'), { nota: 'antes de atender' }));
+  });
+});
+
+describe('dispositivos y calibraciones (administrador)', () => {
+  const calibracion = (cambios = {}) => ({
+    idDispositivo: 'caja-01', fecha: serverTimestamp(), realizadaPor: 'admin', parametro: 'ph', nota: 'Buffer 7.0', ...cambios,
+  });
+
+  test('el administrador registra y edita dispositivos; el encargado no', async () => {
+    const dispositivo = { nombre: 'Caja 2', ubicacion: 'Sala', estado: 'activo' };
+    await assertSucceeds(setDoc(doc(como('admin'), 'dispositivos', 'caja-02'), dispositivo));
+    await assertSucceeds(updateDoc(doc(como('admin'), 'dispositivos', 'caja-02'), { estado: 'inactivo' }));
+    await assertFails(setDoc(doc(como('encargado'), 'dispositivos', 'caja-03'), dispositivo));
+    await assertFails(setDoc(doc(como('admin'), 'dispositivos', 'caja-04'), { ...dispositivo, estado: 'roto' }));
+  });
+  test('una calibracion valida se guarda junto con la fecha en el dispositivo', async () => {
+    const db = como('admin');
+    const lote = writeBatch(db);
+    lote.set(doc(db, 'calibraciones', 'cal-nueva'), calibracion());
+    lote.update(doc(db, 'dispositivos', 'caja-01'), { ultimaCalibracion: serverTimestamp() });
+    await assertSucceeds(lote.commit());
+  });
+  test('rechaza parametro desconocido, dispositivo inexistente, nombre o fecha falsos y campos extra', async () => {
+    const db = como('admin');
+    await assertFails(setDoc(doc(db, 'calibraciones', 'a'), calibracion({ parametro: 'sabor' })));
+    await assertFails(setDoc(doc(db, 'calibraciones', 'b'), calibracion({ idDispositivo: 'no-existe' })));
+    await assertFails(setDoc(doc(db, 'calibraciones', 'c'), calibracion({ realizadaPor: 'encargado' })));
+    await assertFails(setDoc(doc(db, 'calibraciones', 'd'), calibracion({ fecha: Timestamp.now() })));
+    await assertFails(setDoc(doc(db, 'calibraciones', 'e'), calibracion({ extra: 1 })));
+    await assertFails(setDoc(doc(db, 'calibraciones', 'f'), calibracion({ nota: 'x'.repeat(201) })));
+  });
+  test('solo el administrador crea, lee y corrige la nota de una calibracion', async () => {
+    await assertFails(setDoc(doc(como('encargado'), 'calibraciones', 'g'), calibracion({ realizadaPor: 'encargado' })));
+    await assertFails(getDoc(doc(como('encargado'), 'calibraciones', 'cal-1')));
+    await assertSucceeds(updateDoc(doc(como('admin'), 'calibraciones', 'cal-1'), { nota: 'Corregida' }));
+    await assertFails(updateDoc(doc(como('admin'), 'calibraciones', 'cal-1'), { parametro: 'ph' }));
+    await assertFails(updateDoc(doc(como('admin'), 'calibraciones', 'cal-1'), { idDispositivo: 'simulador' }));
+  });
+});
+
