@@ -35,14 +35,17 @@ npm test
 | `model/RecordRulesTest` | 6 | ID de lote (fecha local + estanque sin tildes), dispositivo según el origen, origen desconocido = simulado |
 | `model/DashboardStatsTest` | 5 | Indicadores del panel: mediciones de hoy, % conforme, corte a medianoche en hora de Chile, promedios diarios, conteo de simuladas |
 | `sensor/SensorFrameParserTest` | 12 | Lector de tramas de la caja: formato `DATA:`, clave:valor, ciclo de 4 líneas, tramas incompletas o corruptas, coma decimal, `TURB` no se confunde con `T` |
-| `sensor/DemoReadingGeneratorTest` | 2 | Las lecturas del modo DEMO salen marcadas como simuladas y dentro de los límites |
+| `sensor/DemoReadingGeneratorTest` | 5 | Las lecturas del modo DEMO salen marcadas como simuladas y dentro de los límites; la muestra Variada cambia en cada medición e incluye casos buenos y alterados |
 | `report/ReportWritersTest` | 8 | CSV (BOM, punto y coma, coma decimal, neutralización de fórmulas), Excel y Word válidos, reporte vacío, caracteres especiales, resumen con advertencia de datos simulados |
 | `viewmodel/MeasureViewModelTest` | 10 | Pantalla Medir con una caja falsa: sin conexión no hay lecturas inventadas, lecturas de la caja solo en modo caja, registrar solo con lectura estable y reciente, desconexión al volver a DEMO, simulación solo con la pantalla visible, permiso de Bluetooth |
 | `viewmodel/RecordsUiStateTest` | 3 | Filtros del historial por origen y semáforo, contadores de pendientes de sincronizar y simuladas |
 | `model/analysis/MilkAnalyzerTest` | 43 | Análisis inteligente: 1 a 4 parámetros alterados, niveles leve/moderado/crítico, prioridad, lecturas inválidas y contradictorias, historial (repetición, tendencias, sin historial), configuración y rotulado DEMO (ver `docs/analisis.md`) |
-| `model/analysis/LotAnalyzerTest` | 7 | Análisis por lote: orden por prioridad, no mezcla mediciones de otro lote, mediciones sin lote |
+| `model/analysis/LotAnalyzerTest` | 9 | Análisis por lote: orden por prioridad, no mezcla mediciones de otro lote, mediciones sin lote, mediciones atrasadas |
+| `model/analysis/ForecastTest` | 23 | Proyección: datos insuficientes, conductividad que sube o baja, temperatura que enfría, pH, turbidez, cambios lentos, tiempo sugerido para remedir |
+| `model/analysis/VerdictTest` | 8 | Veredicto (buena calidad, revisar, no usar hasta verificar), pasos, lectura dudosa, glosario |
+| `model/analysis/ProgressAnalyzerTest` | 10 | Seguimiento: mejoró, empeoró o sin cambios respecto de la muestra anterior del lote |
 | `sensor/DemoAnalysisScenariosTest` | 2 | Los 7 escenarios DEMO nuevos producen el análisis esperado con 300 lecturas con ruido cada uno |
-| **Total** | **133** | 81 originales + 52 del análisis inteligente |
+| **Total** | **179 (por confirmar con Gradle)** | 133 verificados + 46 nuevas de proyección, veredicto, seguimiento y datos DEMO variados |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 

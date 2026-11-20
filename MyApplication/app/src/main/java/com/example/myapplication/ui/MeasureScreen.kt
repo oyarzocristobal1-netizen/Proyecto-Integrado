@@ -3,8 +3,6 @@ package com.example.myapplication.ui
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,8 +22,6 @@ import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.outlined.BluetoothDisabled
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.HourglassTop
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material3.Button
@@ -43,9 +39,11 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -69,7 +67,17 @@ import com.example.myapplication.ui.components.DeviceSelectionDialog
 import com.example.myapplication.ui.components.LotPickerDialog
 import com.example.myapplication.ui.components.NoticeBanner
 import com.example.myapplication.ui.components.OfflineBanner
-import com.example.myapplication.ui.components.QualityAssessmentCard
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import com.example.myapplication.model.MeasurementValidator
+import com.example.myapplication.model.analysis.ParameterGlossary
+import com.example.myapplication.model.analysis.ProgressAnalyzer
+import com.example.myapplication.model.analysis.verdict
+import com.example.myapplication.ui.components.GlossaryCard
+import com.example.myapplication.ui.components.NextStepsCard
+import com.example.myapplication.ui.components.ProgressCard
+import com.example.myapplication.ui.components.VerdictCard
+import com.example.myapplication.ui.components.displayName
 import com.example.myapplication.ui.components.AnalysisSection
 import com.example.myapplication.data.asAnalysisReading
 import com.example.myapplication.model.analysis.MilkAnalyzer
@@ -77,8 +85,6 @@ import com.example.myapplication.model.analysis.toAnalysisReading
 import com.example.myapplication.ui.components.ScreenTitle
 import com.example.myapplication.ui.components.SensorCard
 import com.example.myapplication.ui.components.SensorStatus
-import com.example.myapplication.ui.components.SimulatedBadge
-import com.example.myapplication.ui.components.StatusPill
 import com.example.myapplication.ui.components.TemperatureScale
 import com.example.myapplication.ui.theme.AppTheme
 import com.example.myapplication.viewmodel.MeasureMode
@@ -101,6 +107,45 @@ fun MeasureScreen(
     val measure by measureViewModel.state.collectAsStateWithLifecycle()
     val records by recordsViewModel.state.collectAsStateWithLifecycle()
     var showLotPicker by rememberSaveable { mutableStateOf(false) }
+
+    var phase by remember { mutableStateOf(MeasurePhase.IDLE) }
+    var result by remember { mutableStateOf<MilkQualityReading?>(null) }
+    var startedAt by remember { mutableLongStateOf(0L) }
+    val startMeasuring: () -> Unit = {
+        result = null
+        startedAt = System.currentTimeMillis()
+        measureViewModel.startMeasurement()
+        phase = MeasurePhase.MEASURING
+    }
+
+    // Se interpreta con las mediciones ya registradas del lote actual (si no hay lote, sin historial).
+    val doneReading = result
+    val lotId = records.currentLotId
+    val previous = remember(records.recent, lotId) {
+        if (lotId == null) emptyList() else records.recent.map { it.asAnalysisReading() }
+    }
+    val analysis = remember(doneReading, previous, lotId, records.ranges) {
+        doneReading?.let { MilkAnalyzer.analyze(it.toAnalysisReading(lotId), previous, records.ranges) }
+    }
+    val verdict = remember(analysis) { analysis?.verdict() }
+    val progress = remember(doneReading, previous, lotId, records.ranges) {
+        doneReading?.let { ProgressAnalyzer.compare(it.toAnalysisReading(lotId), previous, records.ranges) }
+    }
+
+    // Otra muestra o fuente: se vuelve al inicio para empezar una medicion nueva.
+    LaunchedEffect(measure.mode, measure.scenario) {
+        phase = MeasurePhase.IDLE
+        result = null
+    }
+    // La medicion termina cuando la lectura se estabiliza.
+    LaunchedEffect(phase, measure.stability.isStable, measure.reading) {
+        val reading = measure.reading
+        // Solo cuenta una lectura tomada despues de pulsar el boton (no una anterior).
+        if (phase == MeasurePhase.MEASURING && measure.stability.isStable && reading != null && reading.timestamp >= startedAt) {
+            result = reading
+            phase = MeasurePhase.DONE
+        }
+    }
 
     // La simulacion y el reloj solo corren mientras esta pantalla esta visible.
     LifecycleStartEffect(measureViewModel) {
@@ -161,47 +206,74 @@ fun MeasureScreen(
                 }
             }
 
-            val reading = measure.reading
-            if (reading == null) {
-                item { WaitingCard(measure) }
-            } else {
-                item { ReadingStatusRow(measure, reading) }
-                item {
-                    QualityAssessmentCard(assessment = reading.overallAssessment, simulated = reading.isSimulated)
-                }
-                item {
-                    // Se interpreta con las mediciones ya registradas del lote actual (si no hay lote, sin historial).
-                    val lotId = records.currentLotId
-                    val analysis = remember(reading, records.recent, lotId, records.ranges, measure.stability) {
-                        MilkAnalyzer.analyze(
-                            current = reading.toAnalysisReading(lotId),
-                            previous = if (lotId == null) emptyList() else records.recent.map { it.asAnalysisReading() },
-                            ranges = records.ranges,
-                            stability = measure.stability
+            when (phase) {
+                MeasurePhase.IDLE -> {
+                    item {
+                        StartMeasurementCard(
+                            canStart = measure.mode == MeasureMode.DEMO || measure.isConnected,
+                            demo = measure.mode == MeasureMode.DEMO,
+                            lotName = records.currentLot?.displayName(),
+                            onStart = startMeasuring,
+                            onChangeLot = { showLotPicker = true }
                         )
                     }
-                    AnalysisSection(analysis)
                 }
-                item {
-                    Text(
-                        text = if (reading.isSimulated) "Valores simulados" else "Valores del sensor",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                item { SensorGrid(reading, records.ranges) }
-            }
 
-            item {
-                CurrentLotCard(
-                    currentLot = records.currentLot,
-                    saving = records.saving,
-                    recordEnabled = measure.canRecord,
-                    recordLabel = if (measure.mode == MeasureMode.DEMO) "Registrar medición simulada" else "Registrar medición",
-                    hint = measure.recordHint,
-                    onChangeLot = { showLotPicker = true },
-                    onRecord = { recordsViewModel.recordMeasurement(measure.reading, measure.stability) }
-                )
+                MeasurePhase.MEASURING -> {
+                    item {
+                        MeasuringCard(
+                            samples = measure.stability.samples,
+                            required = measure.stability.required,
+                            onCancel = { phase = MeasurePhase.IDLE }
+                        )
+                    }
+                }
+
+                MeasurePhase.DONE -> {
+                    val reading = result
+                    if (reading == null || analysis == null || verdict == null) {
+                        item { WaitingCard(measure) }
+                    } else {
+                        val detailed = session.role.canViewAllHistory
+
+                        item { VerdictCard(verdict = verdict, simulated = reading.isSimulated) }
+                        item { NextStepsCard(steps = verdict.steps, level = verdict.level) }
+                        progress?.let { report -> item { ProgressCard(report) } }
+                        item {
+                            Text(
+                                text = if (reading.isSimulated) "Valores simulados" else "Valores del sensor",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        item { SensorGrid(reading, records.ranges) }
+                        if (detailed) {
+                            item { AnalysisSection(analysis) }
+                        }
+                        item { GlossaryCard(ParameterGlossary.entries(records.ranges)) }
+                        item {
+                            CurrentLotCard(
+                                currentLot = records.currentLot,
+                                saving = records.saving,
+                                recordEnabled = measure.canRecord,
+                                recordLabel = if (measure.mode == MeasureMode.DEMO) "Registrar medición simulada" else "Registrar medición",
+                                hint = measure.recordHint,
+                                onChangeLot = { showLotPicker = true },
+                                onRecord = {
+                                    // Se guarda lo que se mostro mientras siga vigente; si no, la lectura actual de la misma muestra.
+                                    val fresh = reading.takeIf { measure.now - it.timestamp <= MeasurementValidator.MAX_READING_AGE_MS }
+                                    recordsViewModel.recordMeasurement(fresh ?: measure.reading, measure.stability)
+                                }
+                            )
+                        }
+                        item {
+                            OutlinedButton(
+                                onClick = startMeasuring,
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Medir de nuevo") }
+                        }
+                    }
+                }
             }
 
             item {
@@ -239,6 +311,91 @@ fun MeasureScreen(
             onCreate = { tank -> recordsViewModel.openTodayLot(tank) { showLotPicker = false } },
             onDismiss = { showLotPicker = false }
         )
+    }
+}
+
+private enum class MeasurePhase { IDLE, MEASURING, DONE }
+
+/** Inicio: un boton grande para realizar la medicion. */
+@Composable
+private fun StartMeasurementCard(
+    canStart: Boolean,
+    demo: Boolean,
+    lotName: String?,
+    onStart: () -> Unit,
+    onChangeLot: () -> Unit
+) {
+    Card(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Medir la muestra",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = if (demo) {
+                    "Pulse el botón para tomar una medición simulada. Cada medición sale distinta."
+                } else {
+                    "Ponga el sensor en la muestra y pulse el botón. Mantenga el sensor quieto hasta que termine."
+                },
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Button(
+                onClick = onStart,
+                enabled = canStart,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) { Text("Realizar medición", style = MaterialTheme.typography.titleMedium) }
+            if (!canStart) {
+                Text(
+                    text = "Conecte la caja de sensores para medir.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Lote: ${lotName ?: "sin lote elegido"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = onChangeLot) { Text(if (lotName == null) "Elegir lote" else "Cambiar lote") }
+            }
+        }
+    }
+}
+
+/** Avance mientras la lectura se estabiliza. */
+@Composable
+private fun MeasuringCard(samples: Int, required: Int, onCancel: () -> Unit) {
+    Card(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+                Text(
+                    text = "Midiendo la muestra…",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            LinearProgressIndicator(
+                progress = { if (required == 0) 0f else (samples.toFloat() / required).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = "Lectura $samples de $required. Mantenga el sensor quieto en la muestra.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            TextButton(onClick = onCancel) { Text("Cancelar") }
+        }
     }
 }
 
@@ -335,34 +492,6 @@ private fun WaitingCard(state: MeasureUiState) {
         tone = AppTheme.status.info,
         icon = Icons.Outlined.Info
     )
-}
-
-/** Antiguedad, estabilidad y origen de la lectura mostrada. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun ReadingStatusRow(state: MeasureUiState, reading: MilkQualityReading) {
-    val status = AppTheme.status
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        if (reading.isSimulated) SimulatedBadge()
-        if (state.stability.isStable) {
-            StatusPill("Lectura estable", status.good, icon = Icons.Outlined.CheckCircle)
-        } else {
-            StatusPill(
-                "Estabilizando ${state.stability.samples}/${state.stability.required}",
-                status.warning,
-                icon = Icons.Outlined.HourglassTop
-            )
-        }
-        val age = state.readingAgeSeconds ?: 0L
-        StatusPill(
-            text = if (age <= 1) "Recién leída" else "Hace $age s",
-            tone = if (state.isReadingFresh) status.info else status.alert
-        )
-    }
 }
 
 /** Las 4 tarjetas de sensores en dos filas. */

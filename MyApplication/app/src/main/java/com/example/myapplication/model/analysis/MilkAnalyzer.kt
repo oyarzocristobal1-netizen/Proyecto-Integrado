@@ -57,10 +57,15 @@ object MilkAnalyzer {
         val history = if (reliable) HistoryAnalyzer.analyze(current, previous, ranges, config)
         else HistoryResult(emptyList(), false, PriorityLevel.NORMAL, 1, "No se analiza el historial mientras la lectura actual sea dudosa.")
 
+        val forecast = if (reliable) ForecastEngine.forecast(current, previous, ranges, config)
+        else ForecastResult(emptyList(), "No se proyecta mientras la lectura actual sea dudosa.")
+
         var priority = basePriority(altered)
         if (history.escalate && priority != PriorityLevel.NORMAL) priority = priority.escalated()
         if (history.minPriority > priority) priority = history.minPriority
         if (!reliable && priority < PriorityLevel.PREVENTIVE) priority = PriorityLevel.PREVENTIVE
+        // Una salida de rango prevista pronto pide al menos seguimiento preventivo.
+        if (forecast.soonestExit != null && priority < PriorityLevel.PREVENTIVE) priority = PriorityLevel.PREVENTIVE
 
         val parameterCards = altered.sortedByDescending { it.level.rank }.map { ParameterCards.card(it) }
         val reliabilityCards = issues.map { ParameterCards.reliabilityCard(it) }
@@ -89,8 +94,27 @@ object MilkAnalyzer {
             historyNote = history.note,
             samplesAnalyzed = history.samples,
             simulated = current.isSimulated,
-            disclaimer = if (current.isSimulated) "$ANALYSIS_DEMO_NOTICE $ANALYSIS_DISCLAIMER" else ANALYSIS_DISCLAIMER
+            disclaimer = if (current.isSimulated) "$ANALYSIS_DEMO_NOTICE $ANALYSIS_DISCLAIMER" else ANALYSIS_DISCLAIMER,
+            forecast = forecast,
+            recheckInMinutes = recheckMinutes(priority, reliable, forecast, config)
         )
+    }
+
+    /** Cuando volver a medir: segun la prioridad, y antes si se preve salir del rango pronto. */
+    internal fun recheckMinutes(priority: PriorityLevel, reliable: Boolean, forecast: ForecastResult, c: AnalysisConfig): Int? {
+        val base = when {
+            !reliable -> c.recheckSuspectMinutes
+            priority == PriorityLevel.CRITICAL -> c.recheckCriticalMinutes
+            priority == PriorityLevel.WARNING -> c.recheckWarningMinutes
+            priority == PriorityLevel.PREVENTIVE -> c.recheckPreventiveMinutes
+            else -> null
+        }
+        val exit = forecast.soonestExit?.minutesToEvent?.let { (it / 2).coerceAtLeast(5) }
+        return when {
+            base == null -> exit
+            exit == null -> base
+            else -> minOf(base, exit)
+        }
     }
 
     /** Gravedad segun la magnitud de las desviaciones y cuantos parametros las tienen (no solo la cantidad). */

@@ -78,4 +78,31 @@ class LotAnalyzerTest {
         val analysis = MilkAnalyzer.analyze(r(4 * H, null, ph = 7.0f), previous, ranges)
         assertTrue(analysis.historyCards.isEmpty())
     }
+
+    @Test
+    fun loteNormalSeMarcaAtrasadoPasadoElTiempoMaximoSinMedir() {
+        val config = AnalysisConfig()
+        val last = 5 * H
+        val onTime = LotAnalyzer.analyze(listOf(r(last, "A")), ranges, config, nowMillis = last + 60_000L).first()
+        assertTrue(!onTime.overdue)
+        val late = LotAnalyzer.analyze(
+            listOf(r(last, "A")), ranges, config,
+            nowMillis = last + (config.maxMinutesBetweenMeasurements + 1) * 60_000L
+        ).first()
+        assertTrue(late.overdue)
+        assertEquals(last + config.maxMinutesBetweenMeasurements * 60_000L, late.dueAtMillis)
+    }
+
+    @Test
+    fun loteConProblemaDebeRemedirseAntes() {
+        val config = AnalysisConfig()
+        val last = 5 * H
+        val item = LotAnalyzer.analyze(
+            listOf(r(last, "A", ph = 7.0f)), ranges, config,
+            nowMillis = last + (config.recheckWarningMinutes + 1) * 60_000L
+        ).first()
+        assertTrue(item.overdue)
+        assertEquals(last + config.recheckWarningMinutes * 60_000L, item.dueAtMillis)
+    }
 }
+

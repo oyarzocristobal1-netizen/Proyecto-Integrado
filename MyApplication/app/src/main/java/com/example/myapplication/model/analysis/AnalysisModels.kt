@@ -140,7 +140,11 @@ data class MilkAnalysis(
     /** Muestras distintas del lote que se usaron en el analisis historico (incluye la actual). */
     val samplesAnalyzed: Int,
     val simulated: Boolean,
-    val disclaimer: String
+    val disclaimer: String,
+    /** Hacia donde va cada parametro si sigue la tendencia (estimacion, no prediccion validada). */
+    val forecast: ForecastResult = ForecastResult(emptyList(), null),
+    /** En cuantos minutos conviene volver a medir, o null si no hace falta. */
+    val recheckInMinutes: Int? = null
 ) {
     val altered: List<ParameterFinding> get() = findings.filter { it.level.isDeviation }
     val suspect: List<ParameterFinding> get() = findings.filter { it.level == DeviationLevel.UNRELIABLE }

@@ -12,6 +12,7 @@ import com.example.myapplication.model.MilkQualityReading
 import com.example.myapplication.model.StabilityState
 import com.example.myapplication.model.StabilityTracker
 import com.example.myapplication.sensor.DemoReadingGenerator
+import com.example.myapplication.sensor.DemoSample
 import com.example.myapplication.sensor.DemoScenario
 import com.example.myapplication.sensor.SensorSource
 import kotlinx.coroutines.Job
@@ -34,7 +35,7 @@ enum class MeasureMode(val label: String) {
 
 data class MeasureUiState(
     val mode: MeasureMode = MeasureMode.DEMO,
-    val scenario: DemoScenario = DemoScenario.NORMAL,
+    val scenario: DemoScenario = DemoScenario.VARIED,
     /** Ultima lectura. null = todavia no llega ninguna; la app nunca muestra valores inventados. */
     val reading: MilkQualityReading? = null,
     val stability: StabilityState = StabilityState(isStable = false, samples = 0, required = STABILITY_WINDOW),
@@ -72,6 +73,9 @@ data class MeasureUiState(
 
 private const val STABILITY_WINDOW = 4
 private const val DEMO_INTERVAL_MS = 2_500L
+
+/** Entre las primeras lecturas de una medicion nueva (para que el avance sea rapido). */
+private const val BURST_INTERVAL_MS = 600L
 private const val CLOCK_INTERVAL_MS = 1_000L
 
 /**
@@ -90,6 +94,10 @@ class MeasureViewModel(
     private var demoJob: Job? = null
     private var clockJob: Job? = null
     private var screenVisible = false
+
+    /** Valores de la muestra simulada actual: se sortean de nuevo en cada medicion. */
+    private var sample: DemoSample? = null
+    private var burstRemaining = 0
 
     init {
         viewModelScope.launch {
@@ -125,6 +133,7 @@ class MeasureViewModel(
     fun setMode(mode: MeasureMode) {
         if (_state.value.mode == mode) return
         stability.reset()
+        sample = null
         _state.update {
             it.copy(mode = mode, reading = null, stability = stability.state(), showDeviceDialog = false)
         }
@@ -141,8 +150,24 @@ class MeasureViewModel(
         if (_state.value.scenario == scenario) return
         // Otra muestra: la estabilidad se vuelve a medir desde cero.
         stability.reset()
+        sample = null
         _state.update { it.copy(scenario = scenario, reading = null, stability = stability.state()) }
         if (_state.value.mode == MeasureMode.DEMO && screenVisible) startDemo()
+    }
+
+    /**
+     * "Realizar medicion": empieza una medicion nueva. En el modo DEMO sortea una muestra nueva
+     * (cada medicion sale distinta) y genera sus primeras lecturas rapido; con la caja, espera
+     * lecturas nuevas del sensor.
+     */
+    fun startMeasurement() {
+        stability.reset()
+        sample = null
+        _state.update { it.copy(reading = null, stability = stability.state()) }
+        if (_state.value.mode == MeasureMode.DEMO && screenVisible) {
+            burstRemaining = STABILITY_WINDOW
+            startDemo()
+        }
     }
 
     fun openDeviceDialog() {
@@ -185,8 +210,16 @@ class MeasureViewModel(
         stopDemo()
         demoJob = viewModelScope.launch {
             while (isActive) {
-                accept(demo.next(_state.value.scenario, System.currentTimeMillis()))
-                delay(DEMO_INTERVAL_MS)
+                val scenario = _state.value.scenario
+                val current = sample ?: demo.sampleFor(scenario).also { sample = it }
+                accept(demo.next(scenario, System.currentTimeMillis(), current))
+                val wait = if (burstRemaining > 0) {
+                    burstRemaining--
+                    BURST_INTERVAL_MS
+                } else {
+                    DEMO_INTERVAL_MS
+                }
+                delay(wait)
             }
         }
     }

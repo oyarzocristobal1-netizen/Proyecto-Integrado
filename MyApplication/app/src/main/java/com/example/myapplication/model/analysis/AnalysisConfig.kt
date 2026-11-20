@@ -67,5 +67,18 @@ data class AnalysisConfig(
     /** Muestras consecutivas alteradas para decir que la condicion "se repite". */
     val repeatedAfter: Int = 2,
     /** Muestras consecutivas alteradas para decir que es persistente y subir la prioridad. */
-    val persistentAfter: Int = 3
+    val persistentAfter: Int = 3,
+
+    // --- proyeccion y seguimiento (propuestas por validar)
+    /** Hasta cuantos minutos hacia adelante se proyecta (una proyeccion lejana es poco confiable). */
+    val forecastHorizonMinutes: Int = 120,
+    /** Tiempo minimo entre la primera y la ultima muestra para poder estimar una tendencia. */
+    val forecastMinSpanMinutes: Int = 20,
+    /** Cuando conviene volver a medir segun la prioridad (minutos). */
+    val recheckSuspectMinutes: Int = 5,
+    val recheckPreventiveMinutes: Int = 60,
+    val recheckWarningMinutes: Int = 30,
+    val recheckCriticalMinutes: Int = 15,
+    /** Tiempo maximo sin medir un lote en estado normal antes de marcarlo como atrasado (minutos). */
+    val maxMinutesBetweenMeasurements: Int = 12 * 60
 )

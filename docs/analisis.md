@@ -33,6 +33,30 @@ No cambia el esquema de Firestore ni las reglas: el análisis se calcula al mome
 5. **Prioridad**: NORMAL, PREVENTIVO, ADVERTENCIA o CRÍTICO. Depende de la magnitud de la desviación, la combinación,
    la repetición y la confiabilidad, no solo de cuántos parámetros están alterados.
 
+## Flujo de la medición (pantalla Medir)
+
+1. **Realizar medición**: el trabajador pulsa el botón. En DEMO se sortea una muestra simulada nueva; con la caja, se esperan lecturas del sensor.
+2. **Midiendo**: avance mientras la lectura se estabiliza (4 lecturas parecidas).
+3. **Resultado**: un veredicto de un vistazo, con color e ícono:
+   - **Buena calidad**: los cuatro parámetros están dentro de los rangos (solo considera esos cuatro parámetros).
+   - **Revisar**: desviación leve o moderada, tendencia que preocupa o lectura no confiable.
+   - **No usar hasta verificar**: condición crítica.
+4. **Qué hacer ahora**: de 1 a 4 pasos con casillas que el trabajador va marcando.
+5. **Seguimiento**: si ya había una muestra anterior del mismo lote, indica si mejoró o empeoró (por ejemplo, después de actuar).
+6. **Detalle según rol**: el lechero ve veredicto, pasos, valores y glosario; el encargado y el administrador ven además el análisis completo (causas, qué revisar, proyección, historial).
+7. **Glosario** "¿Qué mide cada parámetro?" para todos los roles.
+
+## Proyección y seguimiento
+
+- **Qué podría pasar**: con una recta ajustada a las últimas muestras distintas del lote (mínimo 3 muestras y 20 min entre la primera y la última) se estima si un parámetro saldría del rango en las próximas 2 horas, si vuelve al rango o si se aleja. Incluye **la conductividad en ambas direcciones** (sube o baja) además de temperatura, pH y turbidez.
+- Es una **estimación lineal con pocas muestras, no una predicción validada**; en temperatura se avisa que el enfriamiento real se desacelera.
+- **Próxima medición sugerida**: 5 min si la lectura es dudosa, 15 min crítico, 30 min advertencia, 60 min preventivo, y antes si se prevé salir del rango pronto.
+- **Medición atrasada**: en el análisis histórico se marca el lote cuyo momento de remedir ya pasó (o, si estaba normal, que lleva más de 12 h sin medirse; valor por validar).
+
+## Datos DEMO variados
+
+La muestra **Variada** (predeterminada) sortea cada medición: cerca de la mitad buenas y el resto con uno, dos, tres o los cuatro parámetros alterados, leves o marcados, y alguna lectura contradictoria. Los valores cambian en cada medición (por ejemplo 3,1 °C y luego 4,6 °C). Las muestras fijas siguen disponibles para probar un caso concreto. Todo se rotula como **simulado**.
+
 ## Limitaciones de interpretación
 
 - **Turbidez**: no se interpreta como viscosidad ni espesor. La turbidez alta no se evalúa por defecto (`turbidityMax = null`).
@@ -54,6 +78,6 @@ Nuevos escenarios en el selector de la pantalla Medir: *Solo pH*, *pH + CE*, *Te
 
 ## Pruebas
 
-`MilkAnalyzerTest` (43), `LotAnalyzerTest` (7) y `DemoAnalysisScenariosTest` (2): 1 a 4 parámetros alterados, niveles leve,
+`MilkAnalyzerTest` (43), `LotAnalyzerTest` (9), `ForecastTest` (23), `VerdictTest` (8), `ProgressAnalyzerTest` (10), `DemoAnalysisScenariosTest` (2) y 3 pruebas nuevas del generador DEMO: 1 a 4 parámetros alterados, niveles leve,
 moderado y crítico, repetición, tendencias ascendentes y descendentes, lecturas inválidas, resultados contradictorios,
 ausencia de historial, filtro por lote y rotulado DEMO. Se ejecutan con `./gradlew test`.

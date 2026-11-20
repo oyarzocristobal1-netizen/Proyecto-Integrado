@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -32,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,6 +46,13 @@ import androidx.compose.ui.unit.dp
 import com.example.myapplication.model.analysis.AnalysisCard
 import com.example.myapplication.model.analysis.CardKind
 import com.example.myapplication.model.analysis.DeviationLevel
+import com.example.myapplication.model.analysis.ForecastStatus
+import com.example.myapplication.model.analysis.ForecastEngine
+import com.example.myapplication.model.analysis.GlossaryEntry
+import com.example.myapplication.model.analysis.ProgressReport
+import com.example.myapplication.model.analysis.ProgressTrend
+import com.example.myapplication.model.analysis.Verdict
+import com.example.myapplication.model.analysis.VerdictLevel
 import com.example.myapplication.model.analysis.LotAnalysis
 import com.example.myapplication.model.analysis.MilkAnalysis
 import com.example.myapplication.model.analysis.PriorityLevel
@@ -131,6 +140,8 @@ fun AnalysisSection(analysis: MilkAnalysis, modifier: Modifier = Modifier, showT
                 }
             }
         }
+
+        ForecastCard(analysis)
 
         val cards = analysis.reliabilityCards + analysis.parameterCards + analysis.combinedCards + analysis.historyCards
         cards.forEach { card ->
@@ -330,6 +341,7 @@ private fun LotAnalysisRow(item: LotAnalysis, name: String) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                if (item.overdue) StatusPill(text = "Medición atrasada", tone = AppTheme.status.warning)
                 if (item.analysis.simulated) SimulatedBadge()
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -337,8 +349,269 @@ private fun LotAnalysisRow(item: LotAnalysis, name: String) {
                 )
             }
             Text(text = item.analysis.headline, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            if (item.overdue) {
+                Text(
+                    text = "Convenía volver a medir a las ${dateFormat.format(Date(item.dueAtMillis))}.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             if (expanded) {
                 AnalysisSection(item.analysis, showTitle = false)
+            }
+        }
+    }
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// Resultado de una medicion: veredicto, pasos, proyeccion, seguimiento y glosario
+// ---------------------------------------------------------------------------------------------
+
+@Composable
+private fun verdictStyle(level: VerdictLevel): Pair<StatusTone, ImageVector> {
+    val status = AppTheme.status
+    return when (level) {
+        VerdictLevel.GOOD -> status.good to Icons.Default.CheckCircle
+        VerdictLevel.REVIEW -> status.warning to Icons.Default.Warning
+        VerdictLevel.STOP -> status.alert to Icons.Default.Error
+    }
+}
+
+/** Estado de la muestra de un vistazo: buena calidad, revisar o no usar hasta verificar. */
+@Composable
+fun VerdictCard(verdict: Verdict, simulated: Boolean, modifier: Modifier = Modifier) {
+    val (tone, icon) = verdictStyle(verdict.level)
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = tone.container),
+        border = BorderStroke(2.dp, tone.content.copy(alpha = 0.4f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(tone.content.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(imageVector = icon, contentDescription = null, tint = tone.content, modifier = Modifier.size(32.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Resultado de la medición",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = tone.content.copy(alpha = 0.85f)
+                    )
+                    Text(
+                        text = verdict.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = tone.content
+                    )
+                }
+            }
+            Text(text = verdict.message, style = MaterialTheme.typography.bodyMedium, color = tone.content)
+            if (simulated) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SimulatedBadge()
+                    Text(
+                        text = "Datos de ejemplo, no es leche real",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = tone.content.copy(alpha = 0.85f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** "Que hacer ahora": pasos con casillas que el trabajador va marcando. */
+@Composable
+fun NextStepsCard(steps: List<String>, level: VerdictLevel, modifier: Modifier = Modifier) {
+    if (steps.isEmpty()) return
+    val checked = remember(steps) { mutableStateListOf<Boolean>().apply { repeat(steps.size) { add(false) } } }
+    val done = checked.count { it }
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Qué hacer ahora",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "$done de ${steps.size}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            steps.forEachIndexed { index, step ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { checked[index] = !checked[index] },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(checked = checked[index], onCheckedChange = { checked[index] = it })
+                    Text(text = step, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                }
+            }
+            if (level != VerdictLevel.GOOD && done == steps.size) {
+                Text(
+                    text = "Cuando termine, pulse \"Medir de nuevo\" para comprobar si mejoró.",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+/** Hacia donde van los parametros si siguen su tendencia, y cuando conviene volver a medir. */
+@Composable
+fun ForecastCard(analysis: MilkAnalysis, modifier: Modifier = Modifier) {
+    val forecast = analysis.forecast
+    val status = AppTheme.status
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(text = "Qué podría pasar", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            when {
+                forecast.note != null -> Text(
+                    text = forecast.note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                forecast.notable.isEmpty() -> Text(
+                    text = "Según las últimas muestras del lote, ningún parámetro saldría del rango en las próximas horas.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                else -> forecast.notable.forEach { f ->
+                    val (tone, label) = when (f.status) {
+                        ForecastStatus.WILL_EXIT_RANGE -> status.warning to "Riesgo"
+                        ForecastStatus.WORSENING -> status.alert to "Empeora"
+                        ForecastStatus.NOT_IMPROVING -> status.warning to "Sin mejora"
+                        else -> status.good to "Mejora"
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            StatusPill(text = label, tone = tone)
+                            Text(
+                                text = f.headline,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Text(
+                            text = f.detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            analysis.recheckInMinutes?.let {
+                Text(
+                    text = "Próxima medición sugerida: en ${ForecastEngine.formatMinutes(it)}.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Text(
+                text = "Es una estimación según la tendencia de pocas muestras, no una predicción validada.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Seguimiento: como quedo esta medicion respecto de la muestra anterior del lote (por ejemplo despues de actuar). */
+@Composable
+fun ProgressCard(report: ProgressReport, modifier: Modifier = Modifier) {
+    val status = AppTheme.status
+    val tone = when (report.overall) {
+        ProgressTrend.IMPROVED -> status.good
+        ProgressTrend.WORSENED -> status.alert
+        ProgressTrend.SAME -> status.info
+    }
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = tone.container)
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = report.headline,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = tone.content
+            )
+            report.items.filter { it.trend != ProgressTrend.SAME }.forEach { item ->
+                val word = if (item.trend == ProgressTrend.IMPROVED) "mejoró" else "empeoró"
+                Text(
+                    text = "${item.parameter.label}: ${item.previousText} → ${item.currentText} ($word)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = tone.content
+                )
+            }
+            Text(
+                text = "Comparado con la muestra tomada hace ${ForecastEngine.formatMinutes(report.minutesBetween.toInt())} en el mismo lote.",
+                style = MaterialTheme.typography.bodySmall,
+                color = tone.content.copy(alpha = 0.85f)
+            )
+        }
+    }
+}
+
+/** Ayuda desplegable: que mide cada parametro, en palabras simples. */
+@Composable
+fun GlossaryCard(entries: List<GlossaryEntry>, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .clickable { expanded = !expanded }
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "¿Qué mide cada parámetro?",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Ocultar ayuda" else "Ver ayuda"
+                )
+            }
+            if (expanded) {
+                entries.forEach { entry ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(text = entry.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        Text(text = entry.text, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             }
         }
     }
