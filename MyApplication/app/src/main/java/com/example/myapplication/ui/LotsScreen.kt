@@ -16,8 +16,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.Lot
+import com.example.myapplication.data.asAnalysisReading
 import com.example.myapplication.model.MeasurementValidator
+import com.example.myapplication.model.analysis.LotAnalyzer
+import com.example.myapplication.model.analysis.verdict
 import com.example.myapplication.ui.components.ConfirmDialog
+import com.example.myapplication.ui.components.SaleDialog
+import com.example.myapplication.ui.components.SalePill
+import com.example.myapplication.ui.components.saleDetailText
 import com.example.myapplication.ui.components.ScreenTitle
 import com.example.myapplication.ui.components.StatusPill
 import com.example.myapplication.ui.theme.AppTheme
@@ -39,6 +45,16 @@ fun LotsScreen(
     var editing by remember { mutableStateOf<Lot?>(null) }
     var togglingClosed by remember { mutableStateOf<Lot?>(null) }
     var deleting by remember { mutableStateOf<Lot?>(null) }
+    var releasing by remember { mutableStateOf<Lot?>(null) }
+    // Analisis de cada lote con sus mediciones validas (las anuladas no cuentan).
+    val measurements = state.recentValid + state.historyValid
+    val analyses = remember(measurements, state.ranges) {
+        LotAnalyzer.analyze(measurements.distinctBy { it.id }.map { it.asAnalysisReading() }, state.ranges, maxLots = Int.MAX_VALUE)
+            .associateBy { it.lotId }
+    }
+    val simulatedLotIds = remember(measurements) {
+        measurements.filter { it.isSimulated }.map { it.lotId }.toSet()
+    }
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
 
     Scaffold(
@@ -65,6 +81,7 @@ fun LotsScreen(
             item {
                 Text(
                     "Toca un lote para corregir el estanque, agregar una observación o cerrarlo. " +
+                        "Con \"Liberar para venta\" decides si la leche del lote es apta o no. " +
                         "Un lote cerrado no admite mediciones nuevas (se puede reabrir). Eliminar un lote es el último recurso (solo el administrador).",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -101,6 +118,7 @@ fun LotsScreen(
                                     StatusPill("ACTIVO", AppTheme.status.good)
                                 }
                             }
+                            SalePill(lot.sale)
                             Text(
                                 "${dateFormat.format(lot.date)} · creado por ${lot.createdByName.ifBlank { "—" }}",
                                 style = MaterialTheme.typography.bodySmall,
@@ -109,6 +127,9 @@ fun LotsScreen(
                             if (lot.note.isNotBlank()) {
                                 Text(lot.note, style = MaterialTheme.typography.bodySmall)
                             }
+                            saleDetailText(lot, dateFormat)?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall)
+                            }
                             if (lot.closed && lot.stateByName.isNotBlank()) {
                                 Text(
                                     "Cerrado por ${lot.stateByName}" + (lot.stateAt?.let { " · ${dateFormat.format(it)}" } ?: ""),
@@ -116,6 +137,10 @@ fun LotsScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            FilledTonalButton(
+                                onClick = { releasing = lot },
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) { Text(if (lot.sale == null) "Liberar para venta" else "Cambiar decisión de venta") }
                         }
                         Icon(Icons.Default.Edit, contentDescription = "Editar lote")
                     }
@@ -189,6 +214,28 @@ fun LotsScreen(
             dismissButton = {
                 TextButton(onClick = { editing = null }, enabled = !state.saving) { Text("Cancelar") }
             }
+        )
+    }
+
+    releasing?.let { lot ->
+        val analysis = analyses[lot.id]
+        SaleDialog(
+            lot = lot,
+            analysis = analysis,
+            measurementCount = analysis?.readings ?: 0,
+            simulatedData = lot.id in simulatedLotIds,
+            saving = state.saving,
+            onConfirm = { decision, note ->
+                viewModel.setLotSale(
+                    lot = lot,
+                    decision = decision,
+                    note = note,
+                    verdict = analysis?.analysis?.verdict()?.level,
+                    measurementCount = analysis?.readings ?: 0,
+                    overdue = analysis?.overdue == true
+                ) { releasing = null }
+            },
+            onDismiss = { releasing = null }
         )
     }
 

@@ -65,6 +65,7 @@ perfil, no editable) y cuándo (hora del servidor). **Eliminar de verdad** es el
 | Cerrar / reabrir lote | Encargado y admin | `cerrado`, `estadoPor`, `estadoEn` | Que lo haga un lechero; firmar con otro nombre; hora falsa; **medir en un lote cerrado** |
 | Anular medición | Encargado y admin | `anulada`, `motivoAnulacion` (3–200), `anuladaPor`, `anuladaEn` | Cambiar los valores medidos; anular sin motivo; desanular; anular dos veces |
 | Atender alerta con nota | Encargado y admin | `atendida`, `nota` (≤300, opcional), `atendidaPor`, `atendidaEn` | Reabrir la alerta; cambiar su valor o mensaje; después solo se edita la nota |
+| Liberar lote para venta | Encargado y admin | `venta` (`apto` / `no_apto`), `ventaNota` (≤200, opcional), `ventaPor`, `ventaEn` | Que lo haga un lechero; firmar con otro nombre; hora falsa; valor distinto de apto/no apto; nota de más de 200 caracteres. La app exige nota al liberar contra lo que sugiere el análisis |
 | Dispositivos | Solo admin | `nombre`, `ubicacion`, `estado` | Borrar sin ser administrador; campos extra |
 | Calibraciones | Solo admin | `idDispositivo`, `fecha`, `realizadaPor`, `parametro`, `nota` | Calibrar un dispositivo inexistente; fecha del teléfono; firmar con otro nombre; reescribirla (solo la nota) |
 

@@ -544,6 +544,39 @@ describe('cierre de lotes', () => {
   });
 });
 
+describe('liberar lote para venta', () => {
+  const venta = (nombre = 'encargado', cambios = {}) => ({
+    venta: 'apto', ventaNota: 'Revisado', ventaPor: nombre, ventaEn: serverTimestamp(), ...cambios,
+  });
+
+  test('encargado y administrador marcan el lote como apto o no apto; el lechero no', async () => {
+    await assertSucceeds(updateDoc(doc(como('encargado'), 'lotes', LOTE), venta()));
+    await assertSucceeds(updateDoc(doc(como('admin'), 'lotes', LOTE), venta('admin', { venta: 'no_apto' })));
+    await assertFails(updateDoc(doc(como('lechero'), 'lotes', LOTE), venta('lechero')));
+  });
+  test('la misma persona puede volver a decidir (aunque su nombre no cambie)', async () => {
+    const db = como('encargado');
+    await assertSucceeds(updateDoc(doc(db, 'lotes', LOTE), venta()));
+    await assertSucceeds(updateDoc(doc(db, 'lotes', LOTE), venta('encargado', { venta: 'no_apto', ventaNota: 'Se repitio la medicion' })));
+    await assertSucceeds(updateDoc(doc(db, 'lotes', LOTE), venta('encargado', { venta: 'no_apto', ventaNota: 'Se repitio la medicion' })));
+  });
+  test('exige decision valida, nombre propio, hora del servidor y nota de hasta 200 caracteres', async () => {
+    const db = como('encargado');
+    await assertFails(updateDoc(doc(db, 'lotes', LOTE), venta('encargado', { venta: 'quizas' })));
+    await assertFails(updateDoc(doc(db, 'lotes', LOTE), venta('admin')));
+    await assertFails(updateDoc(doc(db, 'lotes', LOTE), venta('encargado', { ventaEn: Timestamp.now() })));
+    await assertFails(updateDoc(doc(db, 'lotes', LOTE), venta('encargado', { ventaNota: 'x'.repeat(201) })));
+    await assertFails(updateDoc(doc(db, 'lotes', LOTE), { venta: 'apto' }));
+    await assertSucceeds(updateDoc(doc(db, 'lotes', LOTE), { venta: 'apto', ventaPor: 'encargado', ventaEn: serverTimestamp() }));
+  });
+  test('liberar un lote no cierra el lote ni cambia otros campos', async () => {
+    await assertFails(updateDoc(doc(como('encargado'), 'lotes', LOTE), venta('encargado', { fecha: Timestamp.now() })));
+    await assertFails(updateDoc(doc(como('encargado'), 'lotes', LOTE), venta('encargado', { creadoPor: 'encargado' })));
+    await assertSucceeds(updateDoc(doc(como('encargado'), 'lotes', LOTE), venta()));
+    await assertSucceeds(setDoc(doc(como('lechero'), 'mediciones', 'sigue-abierto'), medicion()));
+  });
+});
+
 describe('anular mediciones (baja logica)', () => {
   const anular = (nombre = 'encargado', cambios = {}) => ({
     anulada: true, motivoAnulacion: 'Sensor fuera de la muestra', anuladaPor: nombre, anuladaEn: serverTimestamp(), ...cambios,

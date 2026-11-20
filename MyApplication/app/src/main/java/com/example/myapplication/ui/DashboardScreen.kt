@@ -220,6 +220,11 @@ fun DashboardScreen(
                     }
                 }
 
+                // Supervision (encargado y administrador): estado por lote, lecheros, comparativas y resumen.
+                if (session.role.canViewAllHistory) item {
+                    SupervisionPanel(state = state, session = session, now = now, onOpenAlerts = onOpenAlerts)
+                }
+
                 val days = summary?.days.orEmpty()
                 if (days.isNotEmpty()) item {
                     TrendChart(

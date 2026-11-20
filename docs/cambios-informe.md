@@ -38,3 +38,11 @@ las secciones correspondientes del informe.
 | Textos en `strings.xml` (traducción) | Pendiente; los textos están en el código |
 | Nombre de paquete definitivo (hoy `com.example.myapplication`) | Pendiente; cambiarlo exige registrar de nuevo la app en Firebase |
 | Estimación de grasa (`grasaMin`) | Pendiente de calibrar la turbidez |
+
+## Mejoras para el encargado (supervisión)
+
+- **Liberar lote para venta**: el encargado (o el administrador) marca el lote como *apto* o *no apto*. El análisis solo sugiere; si se libera contra lo que sugiere (o con una medición atrasada) la nota es obligatoria. Queda guardado quién, cuándo y por qué. Con datos simulados el diálogo avisa que la decisión es de demostración.
+- **Panel de supervisión** (pantalla Panel, solo encargado y administrador): una tarjeta por lote de hoy con veredicto del análisis, última medición o atraso, alertas pendientes y estado de venta; actividad de los lecheros del día.
+- **Resumen diario y comparativas**: botón *Compartir resumen* (texto listo para WhatsApp o correo, con aviso de mediciones SIMULADAS) y comparativa de 7 días por estanque o por lechero (% conformes y promedios).
+- **Alertas más ágiles**: filtros por severidad y por lote, selección múltiple con una nota común y *Ver medición* dentro de cada alerta.
+- Pruebas nuevas: `SaleReleaseTest` (8), `SupervisionTest` (10) y 4 de reglas (liberar lote para venta). Todos los datos del modo DEMO se siguen marcando como simulados.

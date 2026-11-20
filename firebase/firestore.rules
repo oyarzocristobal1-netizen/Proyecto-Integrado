@@ -48,13 +48,27 @@ service cloud.firestore {
     function notaOpcional(d, campo, maximo) {
       return !(campo in d) || (d[campo] is string && d[campo].size() <= maximo);
     }
-    // Cerrar o reabrir un lote: queda quien lo hizo (con su nombre) y la hora del servidor
+    // Cerrar o reabrir un lote: queda quien lo hizo (con su nombre) y la hora del servidor.
+    // La hora del servidor siempre cambia; el nombre puede repetirse (la misma persona cierra y reabre),
+    // por eso se exige que el campo exista y sea el propio, no que "cambie".
     function estadoLoteValido() {
       return !cambios().hasAny(['cerrado', 'estadoPor', 'estadoEn'])
-        || (cambios().hasAll(['cerrado', 'estadoPor', 'estadoEn'])
+        || (cambios().hasAll(['estadoEn'])
+            && request.resource.data.keys().hasAll(['cerrado', 'estadoPor'])
             && request.resource.data.cerrado is bool
             && esMiNombre(request.resource.data.estadoPor)
             && request.resource.data.estadoEn == request.time);
+    }
+    // Liberar el lote para venta (apto / no apto): queda quien lo decidio, cuando y una nota opcional.
+    // Se puede volver a decidir; cada decision actualiza quien y cuando.
+    function ventaLoteValida() {
+      return !cambios().hasAny(['venta', 'ventaNota', 'ventaPor', 'ventaEn'])
+        || (cambios().hasAll(['ventaEn'])
+            && request.resource.data.keys().hasAll(['venta', 'ventaPor'])
+            && request.resource.data.venta in ['apto', 'no_apto']
+            && esMiNombre(request.resource.data.ventaPor)
+            && request.resource.data.ventaEn == request.time
+            && notaOpcional(request.resource.data, 'ventaNota', 200));
     }
     function rangosValidos(r) {
       return numeroEntre(r.tempMax, 0, 20)
@@ -121,11 +135,13 @@ service cloud.firestore {
         && request.resource.data.observacion is string
         && request.resource.data.observacion.size() <= 200;
       allow update: if esEncargado()
-        && cambios().hasOnly(['estanque', 'observacion', 'cerrado', 'estadoPor', 'estadoEn'])
+        && cambios().hasOnly(['estanque', 'observacion', 'cerrado', 'estadoPor', 'estadoEn',
+             'venta', 'ventaNota', 'ventaPor', 'ventaEn'])
         && texto(request.resource.data.estanque, 40)
         && request.resource.data.observacion is string
         && request.resource.data.observacion.size() <= 200
-        && estadoLoteValido();
+        && estadoLoteValido()
+        && ventaLoteValida();
       allow delete: if esAdmin();
     }
 

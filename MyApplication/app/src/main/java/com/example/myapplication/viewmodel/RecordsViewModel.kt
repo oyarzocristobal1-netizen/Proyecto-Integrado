@@ -16,6 +16,7 @@ import com.example.myapplication.data.TankResult
 import com.example.myapplication.data.SavedMeasurement
 import com.example.myapplication.data.toUserMessage
 import com.example.myapplication.model.CrudRules
+import com.example.myapplication.model.AlertSeverity
 import com.example.myapplication.model.DashboardStats
 import com.example.myapplication.model.DashboardSummary
 import com.example.myapplication.model.MeasurementPoint
@@ -24,6 +25,9 @@ import com.example.myapplication.model.MilkQualityReading
 import com.example.myapplication.model.QualityRanges
 import com.example.myapplication.model.QualityRangesHolder
 import com.example.myapplication.model.RecordRules
+import com.example.myapplication.model.SaleDecision
+import com.example.myapplication.model.SaleRelease
+import com.example.myapplication.model.analysis.VerdictLevel
 import com.example.myapplication.model.Role
 import com.example.myapplication.model.StabilityState
 import com.example.myapplication.model.UserSession
@@ -58,6 +62,13 @@ enum class StatusFilter(val label: String, val status: String?) {
     RED("Fuera de rango", "rojo")
 }
 
+/** Filtro de alertas por severidad. */
+enum class SeverityFilter(val label: String, val severity: AlertSeverity?) {
+    ALL("Todas", null),
+    HIGH("Alta", AlertSeverity.ALTA),
+    MEDIUM("Media", AlertSeverity.MEDIA)
+}
+
 data class RecordsUiState(
     /** El telefono tiene internet (si no, lo registrado se guarda y se envia despues). */
     val online: Boolean = true,
@@ -89,6 +100,11 @@ data class RecordsUiState(
     val alerts: List<MilkAlert> = emptyList(),
     val alertsOnlyPending: Boolean = true,
     val alertsLoading: Boolean = true,
+    val alertsSeverity: SeverityFilter = SeverityFilter.ALL,
+    /** Lote por el que se filtran las alertas (null = todos). */
+    val alertsLotFilter: String? = null,
+    /** Alertas marcadas para atenderlas juntas. */
+    val selectedAlertIds: Set<String> = emptySet(),
 
     /** Rangos de calidad vigentes (configuracion/rangos). */
     val ranges: QualityRanges = QualityRangesHolder.current,
@@ -115,6 +131,21 @@ data class RecordsUiState(
         get() = history.filter { m ->
             historyOrigin.matches(m.isSimulated) && (historyStatus.status == null || m.status == historyStatus.status)
         }
+
+    /** Alertas de la lista con los filtros de severidad y lote aplicados. */
+    val filteredAlerts: List<MilkAlert>
+        get() = alerts.filter { a ->
+            (alertsSeverity.severity == null || a.severity == alertsSeverity.severity) &&
+                (alertsLotFilter == null || a.lotId == alertsLotFilter)
+        }
+
+    /** Alertas marcadas que siguen visibles y pendientes (las que se atenderian juntas). */
+    val selectedPendingAlerts: List<MilkAlert>
+        get() = filteredAlerts.filter { !it.attended && it.id in selectedAlertIds }
+
+    /** La medicion de una alerta, si esta entre las cargadas (historial o ultimos 7 dias). */
+    fun measurementOf(alert: MilkAlert): SavedMeasurement? =
+        recent.firstOrNull { it.id == alert.measurementId } ?: history.firstOrNull { it.id == alert.measurementId }
 
     /** Mediciones guardadas en el telefono que el servidor aun no confirma. */
     val pendingSyncCount: Int get() = recent.count { it.pendingSync }
@@ -335,6 +366,43 @@ class RecordsViewModel(
         listenAlerts()
     }
 
+    fun setAlertsSeverity(filter: SeverityFilter) = _state.update { it.copy(alertsSeverity = filter, selectedAlertIds = emptySet()) }
+
+    fun setAlertsLotFilter(lotId: String?) = _state.update { it.copy(alertsLotFilter = lotId, selectedAlertIds = emptySet()) }
+
+    fun toggleAlertSelected(alertId: String) = _state.update {
+        it.copy(selectedAlertIds = if (alertId in it.selectedAlertIds) it.selectedAlertIds - alertId else it.selectedAlertIds + alertId)
+    }
+
+    /** Marca todas las alertas pendientes visibles (o las desmarca si ya estaban todas marcadas). */
+    fun toggleSelectAllPending() = _state.update { st ->
+        val pending = st.filteredAlerts.filter { !it.attended }.map { it.id }.toSet()
+        st.copy(selectedAlertIds = if (pending.isNotEmpty() && st.selectedAlertIds.containsAll(pending)) emptySet() else pending)
+    }
+
+    /** Atiende varias alertas a la vez con la misma nota opcional (encargado y administrador). */
+    fun markSelectedAlertsAttended(note: String, onDone: () -> Unit = {}) {
+        val current = session ?: return
+        if (!current.role.canAttendAlerts) return
+        val ids = _state.value.selectedPendingAlerts.map { it.id }
+        if (ids.isEmpty()) {
+            showMessage("Marca al menos una alerta pendiente.")
+            return
+        }
+        CrudRules.validateAlertNote(note)?.let {
+            showMessage(it)
+            return
+        }
+        write(
+            done = if (ids.size == 1) "Alerta marcada como atendida." else "${ids.size} alertas marcadas como atendidas.",
+            failure = "No se pudieron marcar las alertas",
+            onDone = {
+                _state.update { it.copy(selectedAlertIds = emptySet()) }
+                onDone()
+            }
+        ) { repository.markAlertsAttended(ids, note, current) }
+    }
+
     /** Solo encargado y administrador (lo exigen las reglas). La nota es opcional. */
     fun markAlertAttended(alert: MilkAlert, note: String, onDone: () -> Unit = {}) {
         val current = session ?: return
@@ -446,6 +514,36 @@ class RecordsViewModel(
             failure = "No se pudo actualizar el lote",
             onDone = onDone
         ) { repository.updateLot(lot.id, tank.trim(), note.trim()) }
+    }
+
+    /**
+     * El encargado decide si el lote es apto o no apto para venta. El analisis solo sugiere: si decide
+     * liberar un lote que el analisis marco para revisar (o con una medicion atrasada), debe escribir por que.
+     */
+    fun setLotSale(
+        lot: Lot,
+        decision: SaleDecision?,
+        note: String,
+        verdict: VerdictLevel?,
+        measurementCount: Int,
+        overdue: Boolean,
+        onDone: () -> Unit
+    ) {
+        val current = session ?: return
+        if (!current.role.canEditLots) {
+            showMessage("Tu rol no permite liberar lotes para venta.")
+            return
+        }
+        SaleRelease.validate(decision, verdict, note, measurementCount, overdue)?.let {
+            showMessage(it)
+            return
+        }
+        val chosen = decision ?: return
+        write(
+            done = "Lote marcado: ${chosen.label.lowercase()}.",
+            failure = "No se pudo guardar la decisión",
+            onDone = onDone
+        ) { repository.setLotSale(lot.id, chosen, note, current) }
     }
 
     /** Cierra o reabre un lote (encargado y administrador). Un lote cerrado no admite mediciones. */

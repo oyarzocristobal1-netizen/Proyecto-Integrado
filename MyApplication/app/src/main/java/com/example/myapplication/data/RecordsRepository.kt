@@ -5,6 +5,8 @@ import com.example.myapplication.model.MilkQualityReading
 import com.example.myapplication.model.QualityRanges
 import com.example.myapplication.model.ReadingSource
 import com.example.myapplication.model.RecordRules
+import com.example.myapplication.model.SaleDecision
+import com.example.myapplication.model.DeletionRules
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.model.detectAlerts
 import com.google.firebase.Timestamp
@@ -40,7 +42,12 @@ data class Lot(
     val closed: Boolean = false,
     /** Quien lo cerro o reabrio por ultima vez (vacio si nunca se cambio). */
     val stateByName: String = "",
-    val stateAt: Date? = null
+    val stateAt: Date? = null,
+    /** Decision del encargado: apto o no apto para venta (null si aun no se decide). */
+    val sale: SaleDecision? = null,
+    val saleNote: String = "",
+    val saleByName: String = "",
+    val saleAt: Date? = null
 )
 
 /** Estanque del catalogo (coleccion "estanques"). Se desactiva, no se borra. */
@@ -187,6 +194,21 @@ class RecordsRepository(
                 "estadoEn" to FieldValue.serverTimestamp()
             )
         ).await()
+    }
+
+    /**
+     * El encargado (o el administrador) decide si el lote es apto o no apto para venta, con una nota opcional.
+     * Queda quien lo decidio y cuando. Se puede volver a decidir.
+     */
+    suspend fun setLotSale(lotId: String, decision: SaleDecision, note: String, session: UserSession) {
+        val data = mutableMapOf<String, Any>(
+            "venta" to decision.id,
+            "ventaPor" to session.name,
+            "ventaEn" to FieldValue.serverTimestamp()
+        )
+        // Con nota vacia se borra la nota anterior (si la hubiera) para que no quede una explicacion vieja.
+        data["ventaNota"] = if (note.isBlank()) FieldValue.delete() else note.trim()
+        lots.document(lotId).update(data).await()
     }
 
     // --------------------------------------------------------------- estanques
@@ -430,6 +452,23 @@ class RecordsRepository(
         alerts.document(alertId).update(data).await()
     }
 
+    /** Marca varias alertas como atendidas con la misma nota (una sola escritura atomica por grupo). */
+    suspend fun markAlertsAttended(alertIds: List<String>, note: String, session: UserSession) {
+        DeletionRules.chunk(alertIds).forEach { group ->
+            val batch = db.batch()
+            group.forEach { id ->
+                val data = mutableMapOf<String, Any>(
+                    "atendida" to true,
+                    "atendidaPor" to session.name,
+                    "atendidaEn" to FieldValue.serverTimestamp()
+                )
+                if (note.isNotBlank()) data["nota"] = note.trim()
+                batch.update(alerts.document(id), data)
+            }
+            batch.commit().await()
+        }
+    }
+
     /** Corrige la nota de una alerta ya atendida. */
     suspend fun updateAlertNote(alertId: String, note: String) {
         alerts.document(alertId).update("nota", note.trim()).await()
@@ -539,7 +578,11 @@ class RecordsRepository(
             note = getString("observacion").orEmpty(),
             closed = getBoolean("cerrado") == true,
             stateByName = getString("estadoPor").orEmpty(),
-            stateAt = getTimestamp("estadoEn")?.toDate()
+            stateAt = getTimestamp("estadoEn")?.toDate(),
+            sale = SaleDecision.fromId(getString("venta")),
+            saleNote = getString("ventaNota").orEmpty(),
+            saleByName = getString("ventaPor").orEmpty(),
+            saleAt = getTimestamp("ventaEn")?.toDate()
         )
     }
 
