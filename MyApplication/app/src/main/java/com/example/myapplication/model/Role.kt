@@ -22,6 +22,12 @@ enum class Role(val id: String, val label: String) {
     /** Marcar una alerta como atendida. */
     val canAttendAlerts: Boolean get() = this != LECHERO
 
+    /** Administrar el catalogo de estanques y cerrar o reabrir lotes. */
+    val canManageTanks: Boolean get() = this != LECHERO
+
+    /** Anular una medicion registrada por error (queda guardada, con motivo y responsable). */
+    val canAnnulMeasurements: Boolean get() = this != LECHERO
+
     /** Exportar reportes. */
     val canExportReports: Boolean get() = this != LECHERO
 
