@@ -83,4 +83,28 @@ class VerdictTest {
         assertTrue(entries[2].text.contains("no la diagnostica"))
         assertTrue(entries[3].text.contains("No mide el espesor ni la viscosidad"))
     }
+
+    @Test
+    fun avisoFlotanteSoloSiHayAlgoFueraDeRango() {
+        assertEquals(null, MilkAnalyzer.analyze(rd(), emptyList(), ranges).alertMessage())
+        val msg = MilkAnalyzer.analyze(rd(t = 6f, ph = 7.0f), emptyList(), ranges).alertMessage()!!
+        assertTrue(msg.contains("Temperatura") && msg.contains("pH"))
+        assertTrue(msg.contains("alerta"))
+        assertTrue(msg.startsWith("Revisar"))
+    }
+
+    @Test
+    fun avisoFlotanteCriticoYDeLecturaDudosa() {
+        val critical = MilkAnalyzer.analyze(rd(t = 27f, ph = 7.3f, cond = 7.5f, turb = 30f), emptyList(), ranges).alertMessage()!!
+        assertTrue(critical.startsWith("Atención"))
+        val suspect = MilkAnalyzer.analyze(rd(cond = 0.1f), emptyList(), ranges).alertMessage()!!
+        assertTrue(suspect.startsWith("Medición no confiable"))
+    }
+
+    @Test
+    fun unaSalidaSoloPrevistaNoGeneraAvisoDeAlerta() {
+        val a = MilkAnalyzer.analyze(rd(60, cond = 5.2f), listOf(rd(0, cond = 4.6f), rd(30, cond = 4.9f)), ranges)
+        assertEquals(null, a.alertMessage())
+    }
 }
+

@@ -42,11 +42,11 @@ npm test
 | `model/analysis/MilkAnalyzerTest` | 43 | Análisis inteligente: 1 a 4 parámetros alterados, niveles leve/moderado/crítico, prioridad, lecturas inválidas y contradictorias, historial (repetición, tendencias, sin historial), configuración y rotulado DEMO (ver `docs/analisis.md`) |
 | `model/analysis/LotAnalyzerTest` | 9 | Análisis por lote: orden por prioridad, no mezcla mediciones de otro lote, mediciones sin lote, mediciones atrasadas |
 | `model/analysis/ForecastTest` | 23 | Proyección: datos insuficientes, conductividad que sube o baja, temperatura que enfría, pH, turbidez, cambios lentos, tiempo sugerido para remedir |
-| `model/analysis/VerdictTest` | 8 | Veredicto (buena calidad, revisar, no usar hasta verificar), pasos, lectura dudosa, glosario |
+| `model/analysis/VerdictTest` | 11 | Veredicto (buena calidad, revisar, no usar hasta verificar), pasos, lectura dudosa, glosario, aviso flotante |
 | `model/analysis/ProgressAnalyzerTest` | 10 | Seguimiento: mejoró, empeoró o sin cambios respecto de la muestra anterior del lote |
 | `model/analysis/FindingTextTest` | 4 | Texto de estado de cada recuadro ("Dentro del rango", "Leve · alta", etc.) y que cabe en el recuadro |
 | `sensor/DemoAnalysisScenariosTest` | 2 | Los 7 escenarios DEMO nuevos producen el análisis esperado con 300 lecturas con ruido cada uno |
-| **Total** | **183** | 179 verificados con Gradle el 20-11-2026 + 4 de textos de estado (por confirmar) |
+| **Total** | **186** | 179 verificados con Gradle el 20-11-2026 + 7 nuevas (textos de estado y aviso flotante), por confirmar |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 

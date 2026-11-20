@@ -43,9 +43,10 @@ No cambia el esquema de Firestore ni las reglas: el análisis se calcula al mome
    - **No usar hasta verificar**: condición crítica.
 4. **Qué hacer ahora**: de 1 a 4 pasos con casillas que el trabajador va marcando.
 5. **Valores**: cada parámetro en un recuadro con su valor y su estado ("Dentro del rango", "Leve · alta", "Muy baja", "Crítica · alta") con color según la gravedad.
-6. **Seguimiento**: si ya había una muestra anterior del mismo lote, indica si mejoró o empeoró (por ejemplo, después de actuar).
-7. **Detalle según rol**: el lechero ve veredicto, pasos, valores y glosario; el encargado y el administrador ven además el análisis completo (causas, qué revisar, proyección, historial).
-8. **Glosario** "¿Qué mide cada parámetro?" para todos los roles.
+6. **Aviso flotante**: al terminar la medición, si algún valor salió de rango aparece un mensaje flotante (naranja o rojo según la gravedad) con los parámetros afectados. Al **registrar** la medición se genera la alerta, que el encargado o el administrador revisa en la pantalla **Alertas** y decide si la marca como atendida.
+7. **Seguimiento**: si ya había una muestra anterior del mismo lote, indica si mejoró o empeoró (por ejemplo, después de actuar).
+8. **Detalle según rol**: el lechero ve veredicto, pasos, valores y glosario; el encargado y el administrador ven además el análisis completo (causas, qué revisar, proyección, historial).
+9. **Glosario** "¿Qué mide cada parámetro?" para todos los roles.
 
 ## Proyección y seguimiento
 

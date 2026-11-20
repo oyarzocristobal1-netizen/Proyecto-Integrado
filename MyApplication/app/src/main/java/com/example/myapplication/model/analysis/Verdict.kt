@@ -59,3 +59,17 @@ fun MilkAnalysis.verdict(): Verdict {
         )
     }
 }
+
+/**
+ * Mensaje corto para el aviso flotante al terminar la medicion, o null si no hay nada que avisar
+ * (todo dentro del rango). Al registrar la medicion, cada valor fuera de rango genera una alerta
+ * que el encargado revisa en la pantalla Alertas.
+ */
+fun MilkAnalysis.alertMessage(): String? {
+    if (!reliable) return "Medición no confiable: revise el sensor y repita la medición antes de decidir."
+    val out = altered
+    if (out.isEmpty()) return null
+    val names = joinNames(out.map { "${it.parameter.label} ${it.valueText}" })
+    val prefix = if (priority == PriorityLevel.CRITICAL) "Atención" else "Revisar"
+    return "$prefix: $names fuera de rango. Al registrar la medición se generará una alerta para el encargado."
+}

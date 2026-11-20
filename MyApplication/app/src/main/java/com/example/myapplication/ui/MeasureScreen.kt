@@ -35,6 +35,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -70,6 +74,8 @@ import androidx.compose.runtime.LaunchedEffect
 import com.example.myapplication.model.MeasurementValidator
 import com.example.myapplication.model.analysis.ParameterGlossary
 import com.example.myapplication.model.analysis.ProgressAnalyzer
+import com.example.myapplication.model.analysis.VerdictLevel
+import com.example.myapplication.model.analysis.alertMessage
 import com.example.myapplication.model.analysis.verdict
 import com.example.myapplication.ui.components.GlossaryCard
 import com.example.myapplication.ui.components.levelSensorStatus
@@ -134,6 +140,15 @@ fun MeasureScreen(
         doneReading?.let { ProgressAnalyzer.compare(it.toAnalysisReading(lotId), previous, records.ranges) }
     }
 
+    // Aviso flotante al terminar la medicion si algo salio de rango (la alerta se revisa luego en Alertas).
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(doneReading) {
+        val message = analysis?.alertMessage()
+        if (doneReading != null && message != null) {
+            snackbarHostState.showSnackbar(message = message, withDismissAction = true, duration = SnackbarDuration.Long)
+        }
+    }
+
     // Otra muestra o fuente: se vuelve al inicio para empezar una medicion nueva.
     LaunchedEffect(measure.mode, measure.scenario) {
         phase = MeasurePhase.IDLE
@@ -157,6 +172,17 @@ fun MeasureScreen(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                val tone = if (verdict?.level == VerdictLevel.STOP) AppTheme.status.alert else AppTheme.status.warning
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = tone.container,
+                    contentColor = tone.content,
+                    dismissActionContentColor = tone.content
+                )
+            }
+        },
         topBar = {
             TopAppBar(
                 title = { ScreenTitle("Medir", if (measure.mode == MeasureMode.DEMO) "Modo DEMO (simulación)" else "Caja de sensores") },
