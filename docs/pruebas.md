@@ -5,7 +5,7 @@ hardware está listado al final como pendiente.
 
 ## 1. Cómo ejecutarlas
 
-**Pruebas unitarias (233)** — en la carpeta `MyApplication`:
+**Pruebas unitarias (243)** — en la carpeta `MyApplication`:
 
 ```
 .\gradlew test          (Windows)
@@ -52,7 +52,8 @@ npm test
 | `model/SupervisionTest` | 10 | Supervisión del encargado: agrupar por lechero o estanque, % conforme, promedios, conteo de simuladas, mediciones desde el inicio del día, texto del resumen diario (con aviso de SIMULADAS) |
 | `model/PasswordRulesTest` | 4 | Política de contraseñas para cuentas nuevas: 10 caracteres como mínimo y con mayúscula, minúscula y número; el texto de ayuda coincide |
 | `model/MyDayTest` | 8 | "Mi día" del trabajador (mediciones, % conformes, última, simuladas), inicio del día, recordatorios de la próxima medición (atrasados, próximos, lotes cerrados o de otro día, horizonte de 12 h), hora dicha con naturalidad ("a las…", "mañana a las…", "ayer a las…") y límite de la nota de revisión |
-| **Total** | **233** | 232 verificados con Gradle (`.\gradlew test --rerun-tasks`) el 21-11-2026 + 1 (hora del aviso: hoy, mañana, ayer), por confirmar |
+| `model/RoleNoticesTest` | 10 | Avisos por rol: qué recibe cada rol, no repetir lo ya avisado, avisar solo de lo nuevo con el total, olvidar lo resuelto, el lechero no recibe avisos del encargado y al revés, un aviso por tipo, lote atrasado que vuelve a atrasarse |
+| **Total** | **243** | 232 verificados con Gradle (`.\gradlew test --rerun-tasks`) el 21-11-2026 + 11 por confirmar (1 de la hora del aviso y 10 de avisos por rol; pasan en el entorno de desarrollo) |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 

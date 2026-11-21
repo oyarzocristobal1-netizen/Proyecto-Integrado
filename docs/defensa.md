@@ -24,7 +24,7 @@ Preguntas que probablemente haga el profesor, con una respuesta corta y verdader
 **¿Qué falta en seguridad?** Está en `docs/limitaciones.md`: caché local al cerrar sesión, App Check, respaldos y mover cálculos críticos a Cloud Functions.
 
 ## Sobre calidad y pruebas
-**¿Cuántas pruebas hay?** 89 de reglas y 232 unitarias verificadas con Gradle, más una por confirmar tras el último cambio (total esperado 233), y las pruebas manuales en teléfono (SM-01..SM-14 y las 13 pruebas manuales). La interfaz no tiene pruebas automáticas.
+**¿Cuántas pruebas hay?** 89 de reglas y 232 unitarias verificadas con Gradle, más 11 nuevas por confirmar tras los últimos cambios (total esperado 243), y las pruebas manuales en teléfono (SM-01..SM-14 y las 13 pruebas manuales). La interfaz no tiene pruebas automáticas.
 
 **¿Cómo decide el análisis si una leche está bien?** Compara cada variable con los rangos configurados y entrega un veredicto: bien, revisar o no usar. Es un apoyo: la decisión de venta es de una persona, queda registrada, y si contradice al análisis debe escribir una nota.
 
@@ -32,6 +32,8 @@ Preguntas que probablemente haga el profesor, con una respuesta corta y verdader
 **¿Por qué la nota es obligatoria al contradecir el análisis?** Para dejar constancia de por qué se tomó esa decisión.
 
 **¿Qué hace "Pedir revisión"?** El lechero deja una nota en su medición y el encargado la ve en Alertas, la resuelve con su propia nota y queda quién, cuándo y qué respondió.
+
+**¿Cómo avisa la app al encargado de una alerta?** Con una notificación del teléfono que se revisa cada 15 minutos como mínimo (WorkManager) y solo avisa de lo nuevo. No es instantáneo; lo instantáneo requiere Cloud Functions y push, que quedó como trabajo futuro porque exige el plan de pago de Firebase.
 
 **¿Por qué "Mi día" y recordatorios?** Para que el lechero sepa cuándo le toca medir. Los avisos son aproximados por cómo Android ahorra batería.
 

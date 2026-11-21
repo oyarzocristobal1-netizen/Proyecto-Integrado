@@ -20,6 +20,7 @@ import com.example.myapplication.model.UserSession
 import com.example.myapplication.model.analysis.LotAnalyzer
 import com.example.myapplication.model.MyDay
 import com.example.myapplication.reminders.MeasurementReminders
+import com.example.myapplication.reminders.RoleNoticesScheduler
 import com.example.myapplication.viewmodel.RecordsUiState
 import kotlinx.coroutines.delay
 
@@ -34,7 +35,7 @@ fun ownReminderPlan(state: RecordsUiState, uid: String, now: Long): ReminderPlan
 
 /**
  * Programa las notificaciones de "toca medir" mientras la app esta abierta (y quedan programadas
- * aunque se cierre). Pide el permiso de notificaciones una vez, cuando hay un aviso por programar.
+ * aunque se cierre). El permiso de notificaciones lo pide [RoleNoticesEffect].
  */
 @Composable
 fun MeasurementReminderEffect(state: RecordsUiState, session: UserSession) {
@@ -49,16 +50,26 @@ fun MeasurementReminderEffect(state: RecordsUiState, session: UserSession) {
     val plan = remember(state.recent, state.lots, state.ranges, session.uid, now) {
         ownReminderPlan(state, session.uid, now)
     }
-    var asked by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(plan.upcoming) {
+        MeasurementReminders.sync(context, session.uid, plan.upcoming)
+    }
+}
+
+/**
+ * Avisos por rol con la app cerrada (alertas, revisiones, lotes atrasados): deja programada la revision
+ * periodica y pide el permiso de notificaciones una sola vez por inicio de sesion, para todos los roles.
+ */
+@Composable
+fun RoleNoticesEffect(session: UserSession) {
+    val context = LocalContext.current
+    var asked by rememberSaveable(session.uid) { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
-    LaunchedEffect(plan.upcoming) {
-        if (plan.upcoming.isNotEmpty() && !asked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            !MeasurementReminders.canNotify(context)
-        ) {
+    LaunchedEffect(session.uid) {
+        RoleNoticesScheduler.schedule(context)
+        if (!asked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !MeasurementReminders.canNotify(context)) {
             asked = true
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        MeasurementReminders.sync(context, session.uid, plan.upcoming)
     }
 }

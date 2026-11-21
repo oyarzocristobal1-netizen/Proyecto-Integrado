@@ -31,6 +31,9 @@ const val REPORT_LIMIT = 2000L
 /** Maximo de mediciones que lee el panel principal (ultimos 7 dias). */
 const val DASHBOARD_LIMIT = 500L
 
+/** Maximo de documentos por consulta de los avisos en segundo plano (cuida el consumo de lecturas). */
+const val NOTICE_LIMIT = 200L
+
 /** Lote: la leche de un estanque en un dia (informe, Tabla 20: un lote por estanque y dia). */
 data class Lot(
     val id: String,
@@ -521,6 +524,66 @@ class RecordsRepository(
             .get(Source.SERVER).await()
             // Las anuladas no cuentan en los reportes (siguen guardadas y visibles en el historial).
             .documents.mapNotNull { it.toMeasurement() }.filterNot { it.annulled }
+    }
+
+    // ----------------------------------------------- avisos en segundo plano
+
+    /*
+     * Lecturas puntuales (no en tiempo real) para los avisos del telefono (RoleNoticesWorker).
+     * Usan solo consultas que ya existen (mismos indices) y piden pocos documentos.
+     */
+
+    /** Alertas pendientes (las mismas del tablero de alertas). */
+    suspend fun fetchPendingAlerts(): List<MilkAlert> =
+        alerts.whereEqualTo("atendida", false)
+            .orderBy("fecha", Query.Direction.DESCENDING)
+            .limit(HISTORY_PAGE_SIZE)
+            .get().await()
+            .documents.mapNotNull { it.toAlert() }
+
+    /**
+     * Mediciones donde se pidio revision. Encargado y administrador ven todas; el lechero solo las suyas
+     * (la regla de Firestore exige el filtro por su uid).
+     */
+    suspend fun fetchReviewRequests(onlyOfUid: String?): List<SavedMeasurement> {
+        var query: Query = measurements
+        if (onlyOfUid != null) query = query.whereEqualTo("uidLechero", onlyOfUid)
+        return query.whereEqualTo("revision", true)
+            .limit(NOTICE_LIMIT)
+            .get().await()
+            .documents.mapNotNull { it.toMeasurement() }
+    }
+
+    /** Mediciones desde [since] (todas, para encargado y administrador), de la mas nueva a la mas antigua. */
+    suspend fun fetchMeasurementsSince(since: Date): List<SavedMeasurement> =
+        measurements.whereGreaterThanOrEqualTo("fechaHora", Timestamp(since))
+            .orderBy("fechaHora", Query.Direction.DESCENDING)
+            .limit(NOTICE_LIMIT)
+            .get().await()
+            .documents.mapNotNull { it.toMeasurement() }
+
+    /** Lotes creados desde [since]. */
+    suspend fun fetchLotsSince(since: Date): List<Lot> =
+        lots.whereGreaterThanOrEqualTo("fecha", Timestamp(since))
+            .limit(NOTICE_LIMIT)
+            .get().await()
+            .documents.mapNotNull { it.toLot() }
+
+    /** Rangos vigentes, una sola lectura (por defecto si no existe o esta mal editado). */
+    suspend fun fetchRanges(): QualityRanges {
+        val d = QualityRanges()
+        val snapshot = rangesDoc.get().await()
+        if (!snapshot.exists()) return d
+        fun num(field: String, default: Float) = snapshot.getDouble(field)?.toFloat() ?: default
+        val ranges = QualityRanges(
+            tempMax = num("tempMax", d.tempMax),
+            phMin = num("phMin", d.phMin),
+            phMax = num("phMax", d.phMax),
+            condMin = num("condMin", d.condMin),
+            condMax = num("condMax", d.condMax),
+            turbMin = num("turbMin", d.turbMin)
+        )
+        return if (ranges.validate() == null) ranges else d
     }
 
     // ------------------------------------------------------------------ rangos

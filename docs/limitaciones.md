@@ -24,7 +24,7 @@ Texto base para la sección "Limitaciones y trabajo futuro" del informe. Cada li
 ### Avisos y funcionamiento
 | Limitación | Detalle |
 |---|---|
-| Las alertas no llegan como notificación al encargado. | Hoy el encargado las ve al abrir la app. Un aviso automático requiere un servidor (Cloud Functions + FCM). |
+| Los avisos del teléfono no son en tiempo real. | Alertas, revisiones y lotes atrasados llegan al encargado, y las revisiones respondidas al lechero, mediante una revisión periódica (cada 15 minutos como mínimo; Android puede demorarla). El aviso inmediato requiere un servidor (Cloud Functions + FCM, plan de pago). |
 | Los recordatorios de medición son aproximados. | Usan alarmas inexactas de Android para ahorrar batería y se reprograman al abrir la app (por ejemplo, tras reiniciar el teléfono). No se verificó el aviso en un dispositivo real [completar con el resultado de la prueba]. |
 | La hora mostrada depende de la zona horaria del teléfono. | Si el teléfono tiene otra zona, la hora se ve desplazada, aunque el dato guardado es exacto. |
 | El funcionamiento sin conexión depende de la caché de Firestore y no tiene pruebas dedicadas. | Sin conexión, las lecturas ya descargadas siguen disponibles y las escrituras se envían al reconectar. |
@@ -40,7 +40,7 @@ Texto base para la sección "Limitaciones y trabajo futuro" del informe. Cada li
 ## 2. Trabajo futuro (ordenado por prioridad)
 
 1. **Conectar la caja real**: firmware ESP32, calibración con soluciones patrón y validación contra análisis de laboratorio.
-2. **Cloud Functions**: generar alertas y estado del lote en el servidor, y enviar notificaciones push al encargado.
+2. **Cloud Functions**: generar alertas y estado del lote en el servidor, y enviar notificaciones push inmediatas (hoy los avisos son por revisión periódica).
 3. **Endurecer la seguridad**: App Check, segundo factor para el administrador, limpieza de la caché al cerrar sesión y respaldos programados de Firestore.
 4. **Pruebas de interfaz automáticas** (Compose UI tests) y pruebas con el emulador de reglas dentro de la integración continua.
 5. **Preparar la publicación**: nombre de paquete propio, textos en recursos, ícono y firma de la app.

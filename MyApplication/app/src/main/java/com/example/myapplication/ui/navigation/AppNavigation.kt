@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import com.example.myapplication.ui.components.LocalDemoData
 import com.example.myapplication.ui.MeasurementReminderEffect
+import com.example.myapplication.ui.RoleNoticesEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -166,6 +167,7 @@ private fun MainScaffold(
 
     // Avisos de "toca medir" para las mediciones propias (se programan aunque se cierre la app).
     MeasurementReminderEffect(state = records, session = session)
+    RoleNoticesEffect(session = session)
 
     // Un solo lugar para los mensajes de registros, lotes, alertas y rangos.
     LaunchedEffect(records.message) {

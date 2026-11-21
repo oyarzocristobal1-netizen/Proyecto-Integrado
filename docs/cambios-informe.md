@@ -65,3 +65,12 @@ las secciones correspondientes del informe.
 - Las cuentas nuevas exigen contraseña de **10 caracteres o más, con mayúscula, minúscula y número**. La app lo valida al crear el usuario (con el motivo del rechazo) y la misma política se activa en Firebase Authentication para que el servidor también la exija, no solo la app. El inicio de sesión no aplica la regla de complejidad, para no dejar fuera a cuentas ya creadas.
 - Prueba nueva: `PasswordRulesTest` (4).
 - En "Mi día" la hora de la próxima medición dice "a las 16:03", "mañana a las 04:03" o "ayer a las 22:00" según el día, para que no haya confusión.
+
+## Avisos por rol (notificaciones con la app cerrada)
+
+- Además del recordatorio "Hora de medir", la app avisa según el rol: **encargado y administrador** reciben "Alertas por atender", "Revisión pedida" y "Medición atrasada" (lote de hoy, abierto, al que ya le tocaba medir); el **lechero** recibe "Revisión respondida" cuando el encargado revisa una medición suya.
+- Funciona con una tarea periódica del teléfono (WorkManager, cada 15 minutos como mínimo, solo con conexión) que consulta Firestore con las mismas reglas de seguridad de siempre: cada rol solo lee lo que ya puede leer. Muestra un aviso solo cuando hay algo **nuevo** y no repite lo ya avisado.
+- **No es en tiempo real**: puede demorar varios minutos porque Android agrupa las tareas para ahorrar batería. El aviso inmediato requiere un servidor (Cloud Functions + notificaciones push, plan de pago de Firebase) y queda como trabajo futuro.
+- El permiso de notificaciones se pide una vez al iniciar sesión (Android 13 o superior), para cualquier rol. Sin permiso no se pierde nada: los avisos pendientes llegan cuando se acepta.
+- Consumo de lecturas: cada revisión lee pocas decenas de documentos (alertas pendientes, revisiones pedidas y las mediciones y lotes de hoy). No cambia las reglas de seguridad.
+- Prueba nueva: `RoleNoticesTest` (10).
