@@ -74,3 +74,7 @@ las secciones correspondientes del informe.
 - El permiso de notificaciones se pide una vez al iniciar sesión (Android 13 o superior), para cualquier rol. Sin permiso no se pierde nada: los avisos pendientes llegan cuando se acepta.
 - Consumo de lecturas: cada revisión lee pocas decenas de documentos (alertas pendientes, revisiones pedidas y las mediciones y lotes de hoy). No cambia las reglas de seguridad.
 - Prueba nueva: `RoleNoticesTest` (10).
+
+## Pantalla de inicio de sesión
+
+- Se agregó, bajo el título, una frase que explica qué hace la app: "Mide la leche de cada estanque, la analiza, avisa si hay un problema y deja registrada la decisión de venta de cada lote."

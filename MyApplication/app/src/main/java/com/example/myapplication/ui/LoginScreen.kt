@@ -181,6 +181,16 @@ fun LoginScreen(
                     fontSize = 15.sp,
                     textAlign = TextAlign.Center
                 )
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = "Mide la leche de cada estanque, la analiza, avisa si hay un problema " +
+                        "y deja registrada la decisión de venta de cada lote.",
+                    color = Color.White.copy(alpha = 0.72f),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
             }
 
             // -------------------------------------------------------------- tarjeta
