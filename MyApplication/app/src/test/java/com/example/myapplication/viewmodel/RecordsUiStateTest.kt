@@ -57,6 +57,18 @@ class RecordsUiStateTest {
     }
 
     @Test
+    fun filtroDeOrigenSoloConDatosDeLosDosOrigenes() {
+        // Solo simuladas (la caja no existe): el filtro no se muestra.
+        assertFalse(RecordsUiState(recent = history.filter { it.isSimulated }).hasMixedOrigins)
+        // Solo del sensor: tampoco.
+        assertFalse(RecordsUiState(history = history.filter { !it.isSimulated }).hasMixedOrigins)
+        // De los dos origenes (en el panel o en el historial): si.
+        assertTrue(RecordsUiState(recent = history).hasMixedOrigins)
+        assertTrue(RecordsUiState(recent = history.take(1), history = history.drop(2)).hasMixedOrigins)
+        assertFalse(RecordsUiState().hasMixedOrigins)
+    }
+
+    @Test
     fun contadoresDelPanel() {
         val st = RecordsUiState(recent = history)
         assertEquals(1, st.pendingSyncCount)

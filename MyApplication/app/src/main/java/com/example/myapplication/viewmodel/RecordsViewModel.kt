@@ -156,6 +156,10 @@ data class RecordsUiState(
     val pendingSyncCount: Int get() = recent.count { it.pendingSync }
 
     val recentSimulatedCount: Int get() = recent.count { it.isSimulated }
+
+    /** Hay mediciones reales (sensor) y simuladas: solo entonces tiene sentido filtrar por origen. */
+    val hasMixedOrigins: Boolean
+        get() = (recent + history).let { all -> all.any { it.isSimulated } && all.any { !it.isSimulated } }
 }
 
 private fun isToday(date: Date): Boolean {

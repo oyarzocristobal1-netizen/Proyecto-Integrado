@@ -5,7 +5,7 @@ hardware está listado al final como pendiente.
 
 ## 1. Cómo ejecutarlas
 
-**Pruebas unitarias (227)** — en la carpeta `MyApplication`:
+**Pruebas unitarias (228)** — en la carpeta `MyApplication`:
 
 ```
 .\gradlew test          (Windows)
@@ -40,7 +40,7 @@ npm test
 | `sensor/DemoReadingGeneratorTest` | 5 | Las lecturas del modo DEMO salen marcadas como simuladas y dentro de los límites; la muestra Variada cambia en cada medición e incluye casos buenos y alterados |
 | `report/ReportWritersTest` | 8 | CSV (BOM, punto y coma, coma decimal, neutralización de fórmulas), Excel y Word válidos, reporte vacío, caracteres especiales, resumen con advertencia de datos simulados |
 | `viewmodel/MeasureViewModelTest` | 10 | Pantalla Medir con una caja falsa: sin conexión no hay lecturas inventadas, lecturas de la caja solo en modo caja, registrar solo con lectura estable y reciente, desconexión al volver a DEMO, simulación solo con la pantalla visible, permiso de Bluetooth |
-| `viewmodel/RecordsUiStateTest` | 3 | Filtros del historial por origen y semáforo, contadores de pendientes de sincronizar y simuladas |
+| `viewmodel/RecordsUiStateTest` | 4 | Filtros del historial por origen y semáforo, contadores de pendientes de sincronizar y simuladas, y el filtro por origen solo aparece si hay datos del sensor y simulados |
 | `model/analysis/MilkAnalyzerTest` | 43 | Análisis inteligente: 1 a 4 parámetros alterados, niveles leve/moderado/crítico, prioridad, lecturas inválidas y contradictorias, historial (repetición, tendencias, sin historial), configuración y rotulado DEMO (ver `docs/analisis.md`) |
 | `model/analysis/LotAnalyzerTest` | 9 | Análisis por lote: orden por prioridad, no mezcla mediciones de otro lote, mediciones sin lote, mediciones atrasadas |
 | `model/analysis/ForecastTest` | 23 | Proyección: datos insuficientes, conductividad que sube o baja, temperatura que enfría, pH, turbidez, cambios lentos, tiempo sugerido para remedir |
@@ -51,7 +51,7 @@ npm test
 | `model/SaleReleaseTest` | 8 | Liberar lote para venta: sugerencia según el veredicto, nota obligatoria al liberar contra el análisis o con medición atrasada, sin mediciones no se decide, límite de la nota |
 | `model/SupervisionTest` | 10 | Supervisión del encargado: agrupar por lechero o estanque, % conforme, promedios, conteo de simuladas, mediciones desde el inicio del día, texto del resumen diario (con aviso de SIMULADAS) |
 | `model/MyDayTest` | 7 | "Mi día" del trabajador (mediciones, % conformes, última, simuladas), inicio del día, recordatorios de la próxima medición (atrasados, próximos, lotes cerrados o de otro día, horizonte de 12 h) y límite de la nota de revisión |
-| **Total** | **227** | 179 verificados con Gradle el 20-11-2026 + 7 (textos de estado y aviso flotante) + 9 (CrudRulesTest) + 7 (DeletionRulesTest) + 8 (SaleReleaseTest) + 10 (SupervisionTest) + 7 (MyDayTest), por confirmar con `.\gradlew test --rerun-tasks` |
+| **Total** | **228** | 179 verificados con Gradle el 20-11-2026 + 7 (textos de estado y aviso flotante) + 9 (CrudRulesTest) + 7 (DeletionRulesTest) + 8 (SaleReleaseTest) + 10 (SupervisionTest) + 7 (MyDayTest) + 1 (filtro por origen), por confirmar con `.\gradlew test --rerun-tasks` |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 

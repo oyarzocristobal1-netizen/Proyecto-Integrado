@@ -89,6 +89,13 @@ fun DashboardScreen(
         }
     }
 
+    // Si el filtro quedo oculto, no puede quedar activo (el panel se veria vacio sin motivo aparente).
+    LaunchedEffect(state.hasMixedOrigins, state.dashboardOrigin) {
+        if (!state.hasMixedOrigins && state.dashboardOrigin != OriginFilter.ALL) {
+            viewModel.setDashboardOrigin(OriginFilter.ALL)
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -106,7 +113,8 @@ fun DashboardScreen(
                 item { OfflineBanner(state.pendingSyncCount) }
             }
 
-            item {
+            // El filtro por origen solo aparece si hay datos del sensor y simulados a la vez.
+            if (state.hasMixedOrigins) item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OriginFilter.entries.forEach { f ->
                         FilterChip(

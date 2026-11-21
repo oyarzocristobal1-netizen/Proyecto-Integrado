@@ -30,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,6 +74,13 @@ fun HistoryScreen(
     var annulling by remember { mutableStateOf<SavedMeasurement?>(null) }
     var deleting by remember { mutableStateOf<SavedMeasurement?>(null) }
 
+    // Si el filtro por origen quedo oculto, no puede quedar activo.
+    LaunchedEffect(state.hasMixedOrigins, state.historyOrigin) {
+        if (!state.hasMixedOrigins && state.historyOrigin != OriginFilter.ALL) {
+            viewModel.setHistoryOrigin(OriginFilter.ALL)
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -106,7 +114,8 @@ fun HistoryScreen(
                             onSelect = viewModel::setHistoryLotFilter
                         )
                     }
-                    ChipRow {
+                    // El filtro por origen solo aparece si hay datos del sensor y simulados a la vez.
+                    if (state.hasMixedOrigins) ChipRow {
                         OriginFilter.entries.forEach { f ->
                             FilterChip(
                                 selected = state.historyOrigin == f,
