@@ -75,6 +75,22 @@ class MyDayTest {
     }
 
     @Test
+    fun horaDelAvisoDiceHoyMananaOAyer() {
+        val tz = java.util.TimeZone.getTimeZone("America/Santiago")
+        fun at(day: Int, h: Int, m: Int): Long = java.util.Calendar.getInstance(tz).apply {
+            clear(); set(2026, java.util.Calendar.NOVEMBER, day, h, m)
+        }.timeInMillis
+        val now = at(21, 16, 30)
+        assertEquals("a las 18:05", DayTime.label(at(21, 18, 5), now, tz))
+        assertEquals("a las 09:00", DayTime.label(at(21, 9, 0), now, tz))
+        assertEquals("mañana a las 04:03", DayTime.label(at(22, 4, 3), now, tz))
+        assertEquals("ayer a las 22:10", DayTime.label(at(20, 22, 10), now, tz))
+        assertEquals("el 24/11 a las 08:00", DayTime.label(at(24, 8, 0), now, tz))
+        // pasada la medianoche, "mañana" sigue siendo el dia siguiente al de la hora actual
+        assertEquals("mañana a las 00:30", DayTime.label(at(22, 0, 30), at(21, 23, 50), tz))
+    }
+
+    @Test
     fun textoDelAvisoNombraElLote() {
         assertTrue(Reminders.notificationText("Estanque 2").contains("Estanque 2"))
     }

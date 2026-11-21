@@ -5,7 +5,7 @@ hardware está listado al final como pendiente.
 
 ## 1. Cómo ejecutarlas
 
-**Pruebas unitarias (232)** — en la carpeta `MyApplication`:
+**Pruebas unitarias (233)** — en la carpeta `MyApplication`:
 
 ```
 .\gradlew test          (Windows)
@@ -51,8 +51,8 @@ npm test
 | `model/SaleReleaseTest` | 8 | Liberar lote para venta: sugerencia según el veredicto, nota obligatoria al liberar contra el análisis o con medición atrasada, sin mediciones no se decide, límite de la nota |
 | `model/SupervisionTest` | 10 | Supervisión del encargado: agrupar por lechero o estanque, % conforme, promedios, conteo de simuladas, mediciones desde el inicio del día, texto del resumen diario (con aviso de SIMULADAS) |
 | `model/PasswordRulesTest` | 4 | Política de contraseñas para cuentas nuevas: 10 caracteres como mínimo y con mayúscula, minúscula y número; el texto de ayuda coincide |
-| `model/MyDayTest` | 7 | "Mi día" del trabajador (mediciones, % conformes, última, simuladas), inicio del día, recordatorios de la próxima medición (atrasados, próximos, lotes cerrados o de otro día, horizonte de 12 h) y límite de la nota de revisión |
-| **Total** | **232** | Verificados con Gradle (`.\gradlew test --rerun-tasks`) el 21-11-2026: 232 correctas, 0 fallas |
+| `model/MyDayTest` | 8 | "Mi día" del trabajador (mediciones, % conformes, última, simuladas), inicio del día, recordatorios de la próxima medición (atrasados, próximos, lotes cerrados o de otro día, horizonte de 12 h), hora dicha con naturalidad ("a las…", "mañana a las…", "ayer a las…") y límite de la nota de revisión |
+| **Total** | **233** | 232 verificados con Gradle (`.\gradlew test --rerun-tasks`) el 21-11-2026 + 1 (hora del aviso: hoy, mañana, ayer), por confirmar |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 

@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.SavedMeasurement
+import com.example.myapplication.model.DayTime
 import com.example.myapplication.model.MyDay
 import com.example.myapplication.model.SupervisionPoint
 import com.example.myapplication.model.UserSession
@@ -82,7 +83,7 @@ fun MyDayCard(state: RecordsUiState, session: UserSession, now: Long, modifier: 
             }
             plan.overdue.forEach { item ->
                 Text(
-                    "Lote ${item.tank}: te toca medir (desde las ${timeFormat.format(Date(item.dueAtMillis))}).",
+                    "Lote ${item.tank}: te tocaba medir ${DayTime.label(item.dueAtMillis, now)}.",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = status.warning.content
@@ -90,7 +91,7 @@ fun MyDayCard(state: RecordsUiState, session: UserSession, now: Long, modifier: 
             }
             plan.upcoming.forEach { item ->
                 Text(
-                    "Lote ${item.tank}: próxima medición a las ${timeFormat.format(Date(item.dueAtMillis))}.",
+                    "Lote ${item.tank}: próxima medición ${DayTime.label(item.dueAtMillis, now)}.",
                     style = MaterialTheme.typography.bodyMedium
                 )
             }

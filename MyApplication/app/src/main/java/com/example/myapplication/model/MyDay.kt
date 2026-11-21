@@ -1,7 +1,11 @@
 package com.example.myapplication.model
 
 import com.example.myapplication.model.analysis.LotAnalysis
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 /** Resumen del dia de un trabajador (lo que ve en "Mi dia"). */
 data class MyDaySummary(
@@ -37,6 +41,29 @@ object MyDay {
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
+}
+
+/** Hora de un aviso dicha con naturalidad: "a las 16:03", "mañana a las 04:03", "ayer a las 22:00" o "el 23/11 a las 09:00". */
+object DayTime {
+    fun label(timeMillis: Long, nowMillis: Long, timeZone: TimeZone = TimeZone.getDefault()): String {
+        val clock = SimpleDateFormat("HH:mm", Locale.US).apply { this.timeZone = timeZone }.format(Date(timeMillis))
+        val days = dayNumber(timeMillis, timeZone) - dayNumber(nowMillis, timeZone)
+        return when (days) {
+            0L -> "a las $clock"
+            1L -> "mañana a las $clock"
+            -1L -> "ayer a las $clock"
+            else -> {
+                val date = SimpleDateFormat("dd/MM", Locale.US).apply { this.timeZone = timeZone }.format(Date(timeMillis))
+                "el $date a las $clock"
+            }
+        }
+    }
+
+    /** Dia calendario (en la zona horaria dada) como numero, para restar dias sin errores de horario de verano. */
+    private fun dayNumber(millis: Long, timeZone: TimeZone): Long {
+        val c = Calendar.getInstance(timeZone).apply { timeInMillis = millis }
+        return java.time.LocalDate.of(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH)).toEpochDay()
+    }
 }
 
 /** Un lote al que le toca una nueva medicion. */

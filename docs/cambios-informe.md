@@ -64,3 +64,4 @@ las secciones correspondientes del informe.
 
 - Las cuentas nuevas exigen contraseña de **10 caracteres o más, con mayúscula, minúscula y número**. La app lo valida al crear el usuario (con el motivo del rechazo) y la misma política se activa en Firebase Authentication para que el servidor también la exija, no solo la app. El inicio de sesión no aplica la regla de complejidad, para no dejar fuera a cuentas ya creadas.
 - Prueba nueva: `PasswordRulesTest` (4).
+- En "Mi día" la hora de la próxima medición dice "a las 16:03", "mañana a las 04:03" o "ayer a las 22:00" según el día, para que no haya confusión.
