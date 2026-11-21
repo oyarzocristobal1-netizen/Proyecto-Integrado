@@ -31,6 +31,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -99,8 +100,11 @@ fun AnalysisSection(
     modifier: Modifier = Modifier,
     showTitle: Boolean = true,
     /** Mostrar los recuadros con el valor de cada parametro (la pantalla Medir ya los muestra aparte). */
-    showFindings: Boolean = true
+    showFindings: Boolean = true,
+    /** Las tarjetas de detalle (que se detecto y por que) quedan tras un boton "Ver detalle"; las acciones siguen visibles. */
+    detailsCollapsible: Boolean = false
 ) {
+    var showDetails by remember { mutableStateOf(!detailsCollapsible) }
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (showTitle) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -137,8 +141,19 @@ fun AnalysisSection(
         }
 
         val cards = analysis.reliabilityCards + analysis.parameterCards + analysis.combinedCards + analysis.historyCards
-        cards.forEach { card ->
-            key(card.kind, card.title) { InsightCard(card) }
+        if (detailsCollapsible && cards.isNotEmpty()) {
+            OutlinedButton(onClick = { showDetails = !showDetails }, modifier = Modifier.fillMaxWidth()) {
+                Icon(
+                    imageVector = if (showDetails) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = null
+                )
+                Text(if (showDetails) "  Ocultar detalle del análisis" else "  Ver detalle del análisis (${cards.size})")
+            }
+        }
+        if (showDetails) {
+            cards.forEach { card ->
+                key(card.kind, card.title) { InsightCard(card) }
+            }
         }
 
         Text(
@@ -355,7 +370,7 @@ private fun LotAnalysisRow(item: LotAnalysis, name: String) {
                 )
             }
             if (expanded) {
-                AnalysisSection(item.analysis, showTitle = false)
+                AnalysisSection(item.analysis, showTitle = false, detailsCollapsible = true)
             }
         }
     }
