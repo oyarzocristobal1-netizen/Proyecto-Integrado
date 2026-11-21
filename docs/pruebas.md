@@ -115,7 +115,7 @@ npm test
 | 9 | Admin | Más → Rangos → pH mínimo mayor que el máximo → Guardar | Mensaje de error, no se guarda |
 | 10 | Admin | Más → Gestión de usuarios → desactivar una cuenta | Pide confirmación; esa cuenta ya no puede ingresar |
 | 11 | Lechero | Revisar la pestaña Más | No aparecen Lotes, Reportes, Rangos ni Usuarios |
-| 12 | Cualquiera | Medir → Caja de sensores sin caja emparejada | No muestra valores; indica conectar la caja |
+| 12 | Cualquiera | Medir: comprobar que no hay selector Simulación / Caja de sensores | Solo aparece la elección de la muestra simulada. El comportamiento sin caja (no inventa valores) está cubierto por `MeasureViewModelTest` |
 | 13 | Cualquiera | Cambiar el teléfono a tema oscuro | Colores legibles; semáforo y letrero DEMO se distinguen |
 
 ## 6. Pendiente de probar con la caja de sensores

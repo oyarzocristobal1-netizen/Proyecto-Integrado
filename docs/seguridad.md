@@ -101,7 +101,7 @@ Se necesitan 2 teléfonos o 2 cuentas (una de administrador y una de lechero).
 | SM-06 | Crear un usuario con una contraseña corta (menos de 10) y otra sin mayúscula o sin número | Se rechaza con el motivo (la app avisa antes de enviar; el servidor también la rechaza con la política activada) |
 | SM-07 | 6 contraseñas incorrectas seguidas | Mensaje genérico; Firebase puede bloquear temporalmente |
 | SM-08 | Ingresar con correo inexistente y con correo real y contraseña mala | Mismo mensaje en ambos casos |
-| SM-09 | Recorrer todas las pantallas buscando cómo borrar algo | No existe ninguna opción de eliminar |
+| SM-09 | Como lechero y como encargado, recorrer todas las pantallas buscando cómo borrar algo | No existe ninguna opción de eliminar (solo anular, cerrar o desactivar). Solo el administrador tiene "Eliminar", con confirmación y registro en la bitácora |
 | SM-10 | Desactivar cuenta, marcar alerta atendida y cerrar sesión con pendientes | Cada acción pide confirmación |
 | SM-11 | Tocar Registrar dos veces seguidas | Una sola medición ("Esta lectura ya fue registrada") |
 | SM-12 | Crear el lote `=1+1`, registrar una medición, exportar CSV y abrir en Excel | El lote aparece como texto `'=1+1`, no calcula |
