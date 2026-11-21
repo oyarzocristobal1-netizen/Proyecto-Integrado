@@ -23,10 +23,10 @@ Para quien no hizo la app: qué probar, qué capturar y cómo anotarlo. Los resu
 | # | Rol | Qué se ve | Cómo llegar |
 |---|---|---|---|
 | 1 | Lechero | Resultado "Buena calidad" | Medir → muestra Normal → esperar "Lectura estable" |
-| 2 | Lechero | Resultado "Revisar" | Medir → una muestra alterada leve (por ejemplo Diluida) |
+| 2 | Lechero | Resultado "Revisar" | Medir → muestra **Solo pH** (deslizar los botones de muestras hacia la derecha). Ácida, Mastitis y Diluida dan "No usar hasta verificar" |
 | 3 | Lechero | Resultado "No usar hasta verificar" | Medir → muestra Mastitis o Ácida |
 | 4 | Lechero | Nota y "Pedir revisión" en la medición | En Medir, antes de registrar |
-| 5 | Lechero | Historial con el análisis y "Ver detalle del análisis" | Historial → abrir una medición |
+| 5 | Encargado | "Análisis histórico" con una tarjeta abierta y "Ver detalle del análisis" | Historial → tocar la flecha de un lote → "Ver detalle del análisis" (el lechero no tiene esta sección) |
 | 6 | Encargado | Alertas con filtros y "Revisiones pedidas" | Pestaña Alertas |
 | 7 | Encargado | Panel de supervisión | Pestaña Panel |
 | 8 | Encargado | Lotes con "Apto para venta" y su nota | Pestaña Más → Lotes |
