@@ -58,4 +58,4 @@ las secciones correspondientes del informe.
 
 - Para no cargar la app con una marca en cada dato, se quitaron las insignias "SIMULADA" repetidas y los banners grandes de cada pantalla. En su lugar aparece un letrero pequeño **DEMO** junto al título, mientras haya datos simulados o el modo Simulación esté activo.
 - Los reportes (columna Origen y advertencia en el resumen) y el resumen diario compartido siguen indicando que los datos son simulados, porque salen de la app.
-- Lo simulado sigue guardándose con `origen = "simulado"` y el dispositivo `simulador`, y las reglas de Firestore impiden hacerlo pasar por dato del sensor.
+- Lo simulado sigue guardándose con `origen = "simulado"` y el dispositivo `simulador`, y las reglas de Firestore impiden hacerlo pasar por dato del sensor.- En la pantalla Medir se ocultó el selector Simulación | Caja de sensores, porque la caja no estará disponible; queda la selección de la muestra simulada (Variada, Normal, Ácida, Mastitis, Diluida). La conexión por Bluetooth sigue implementada en el código y documentada en [protocolo-caja.md](protocolo-caja.md), pero no se puede activar desde la interfaz.

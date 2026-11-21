@@ -101,6 +101,9 @@ import com.example.myapplication.viewmodel.MeasureUiState
 import com.example.myapplication.viewmodel.MeasureViewModel
 import com.example.myapplication.viewmodel.RecordsViewModel
 
+/** Muestra el selector Simulacion | Caja de sensores en la pantalla Medir (oculto: la caja no estara disponible). */
+private const val SHOW_MODE_SELECTOR = false
+
 /**
  * Tomar una medicion (CU1): lectura en vivo (simulada o de la caja), su evaluacion y el registro
  * en el lote activo. El boton Registrar solo se habilita con una lectura reciente y estable.
@@ -217,7 +220,9 @@ fun MeasureScreen(
                 item { OfflineBanner(records.pendingSyncCount) }
             }
 
-            item {
+            // La caja de sensores no estara disponible: el selector Simulacion / Caja queda oculto.
+            // La conexion por Bluetooth sigue implementada; para volver a mostrarlo basta cambiar la constante.
+            if (SHOW_MODE_SELECTOR) item {
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     MeasureMode.entries.forEachIndexed { index, mode ->
                         SegmentedButton(

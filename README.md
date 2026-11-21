@@ -9,7 +9,7 @@ Equipo: Francisco Álvarez, Fernanda Delgado y Cristóbal Epuyao.
 
 > La caja de sensores todavía no está disponible. La app se usa en **modo DEMO** con datos simulados,
 > identificados como **DEMO** en la app (letrero junto al título de cada pantalla) y marcados como **SIMULADOS** en los reportes. La conexión con la caja está implementada
-> pero **pendiente de validar**.
+> pero **pendiente de validar** y oculta en la interfaz (la pantalla Medir usa solo el modo Simulación).
 
 ## Estructura
 
