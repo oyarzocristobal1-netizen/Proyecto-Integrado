@@ -206,7 +206,15 @@ fun LotPickerDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text("Nuevo lote", style = MaterialTheme.typography.labelLarge)
                 if (useCatalog) {
-                    tanks.forEach { t ->
+                    // Un estanque que ya tiene lote hoy no se ofrece otra vez: se elige arriba, en "Lotes de hoy".
+                    val withoutLot = tanks.filter { t -> todayLots.none { it.tank == t.name } }
+                    if (withoutLot.isEmpty()) {
+                        Text(
+                            "Todos los estanques ya tienen lote hoy. Elige uno de la lista de arriba.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    withoutLot.forEach { t ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -238,7 +246,7 @@ fun LotPickerDialog(
                     )
                 }
                 Text(
-                    "Se crea un lote por estanque y día. Si ya existe, se usa el mismo.",
+                    "Se crea un lote por estanque y día.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
