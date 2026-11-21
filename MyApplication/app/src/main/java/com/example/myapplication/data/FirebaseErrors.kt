@@ -2,6 +2,7 @@ package com.example.myapplication.data
 
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.FirebaseTooManyRequestsException
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
@@ -20,6 +21,14 @@ fun Throwable.toUserMessage(): String = when (this) {
     is FirebaseAuthWeakPasswordException -> "La contraseña no cumple la política: mínimo 10 caracteres, con mayúscula, minúscula y número."
     is FirebaseAuthInvalidCredentialsException -> "Correo o contraseña incorrectos."
     is FirebaseAuthInvalidUserException -> "Correo o contraseña incorrectos."
+    // Otros errores de Authentication: con la politica de contrasenas en modo "Exigir", Firebase responde con este codigo.
+    is FirebaseAuthException -> when (errorCode) {
+        "ERROR_PASSWORD_DOES_NOT_MEET_REQUIREMENTS", "ERROR_WEAK_PASSWORD" ->
+            "La contraseña no cumple la política: mínimo 10 caracteres, con mayúscula, minúscula y número."
+        "ERROR_EMAIL_ALREADY_IN_USE" -> "Ya existe una cuenta con ese correo."
+        "ERROR_INVALID_EMAIL" -> "Ingresa un correo válido."
+        else -> "No se pudo completar la operación. Inténtalo de nuevo."
+    }
     is FirebaseFirestoreException -> firestoreMessage(code)
     else -> "No se pudo completar la operación. Inténtalo de nuevo."
 }
