@@ -10,6 +10,8 @@ Para quien no hizo la app: qué probar, qué capturar y cómo anotarlo. Los resu
 
 ## 1. Reglas para las capturas
 
+0. **Usar siempre la última versión de la app** (la que tiene la pantalla de bienvenida con el nombre MilkQuality). Las capturas antiguas del informe se reemplazan, no se mezclan con las nuevas: la interfaz cambió mucho (etiqueta DEMO, panel de supervisión, "Mi día", venta de lotes, avisos).
+
 1. Tapar los **correos** (en la pestaña Más aparece el de la cuenta). Los nombres de pila de prueba se pueden dejar.
 2. Capturar la pantalla completa del teléfono, sin recortes ni retoques.
 3. Nombre del archivo: `NN-rol-que-muestra.png`, por ejemplo `07-encargado-panel-supervision.png`.
@@ -32,6 +34,11 @@ Para quien no hizo la app: qué probar, qué capturar y cómo anotarlo. Los resu
 | 10 | Administrador | Gestión de usuarios con el mensaje de contraseña | Más → Gestión de usuarios → Nuevo trabajador, con una clave corta |
 | 11 | Los 3 roles | Pestaña **Más** (cada rol ve opciones distintas) | Una captura por rol, con el correo tapado |
 | 12 | Lechero | Tarjeta "Mi día" | Pestaña Panel |
+| 13 | Sin sesión | Pantalla de bienvenida (MilkQuality) | Abrir la app con la sesión cerrada |
+| 14 | Sin sesión | Inicio de sesión | Tocar "Ingresar" en la bienvenida |
+| 15 | Lechero | Medir con la muestra y el selector de lote | Pestaña Medir → Cambiar lote |
+| 16 | Encargado | Historial filtrado por "Conforme" y el "Análisis histórico" sin filtrar | Pestaña Historial |
+| 17 | Cualquiera | Notificación de aviso en la pantalla de bloqueo | Ver sección 4 |
 
 Las capturas de la consola de Firebase (reglas publicadas, política de contraseñas) y de GitHub las saca Cristóbal, porque requieren su cuenta.
 
