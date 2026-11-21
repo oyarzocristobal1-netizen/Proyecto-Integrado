@@ -24,7 +24,7 @@ Preguntas que probablemente haga el profesor, con una respuesta corta y verdader
 **¿Qué falta en seguridad?** Está en `docs/limitaciones.md`: caché local al cerrar sesión, App Check, respaldos y mover cálculos críticos a Cloud Functions.
 
 ## Sobre calidad y pruebas
-**¿Cuántas pruebas hay?** 89 de reglas y 248 unitarias (243 verificadas con Gradle y 5 nuevas por confirmar), y las pruebas manuales en teléfono (SM-01..SM-14 y las 13 pruebas manuales). La interfaz no tiene pruebas automáticas.
+**¿Cuántas pruebas hay?** 89 de reglas y 248 unitarias (todas verificadas con Gradle: 248 correctas, 0 fallas), y las pruebas manuales en teléfono (SM-01..SM-14 y las 13 pruebas manuales). La interfaz no tiene pruebas automáticas.
 
 **¿Cómo decide el análisis si una leche está bien?** Compara cada variable con los rangos configurados y entrega un veredicto: bien, revisar o no usar. Es un apoyo: la decisión de venta es de una persona, queda registrada, y si contradice al análisis debe escribir una nota.
 

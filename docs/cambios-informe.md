@@ -25,7 +25,7 @@ las secciones correspondientes del informe.
 
 ## Pruebas (sección de validación)
 
-- 227 pruebas unitarias automáticas (por confirmar con Gradle) y 89 pruebas de reglas de Firestore (verificadas con el emulador) (detalle en [pruebas.md](pruebas.md)).
+- 248 pruebas unitarias automáticas (verificadas con Gradle el 21-11-2026) y 89 pruebas de reglas de Firestore (verificadas con el emulador) (detalle en [pruebas.md](pruebas.md)).
 - Pruebas con hardware pendientes hasta contar con la caja de sensores.
 
 ## Pendiente o no implementado
@@ -85,4 +85,4 @@ las secciones correspondientes del informe.
 - **Historial**: al elegir un filtro de resultado (Conforme, Precaución, Fuera de rango) u origen, el recuadro "Análisis histórico" se oculta para que la lista filtrada se vea de inmediato bajo los filtros; con "Todos" vuelve a aparecer.
 - **Historial: "Ver qué hacer"**: cada medición que no es de buena calidad (y no está anulada) muestra un botón plegado "Ver qué hacer (N)" con los mismos pasos recomendados de la pantalla Medir. Se calculan al momento con el análisis de siempre y las mediciones anteriores del lote, no se guardan en la base de datos, y sirven para todos los roles (también "Mis mediciones" del lechero).
 - **Liberar para venta exige atender lo pendiente**: un lote con alertas o revisiones pedidas sin atender no se puede liberar como "apto para venta". El diálogo lo explica ("Antes de liberar como apto, atiende en Alertas lo pendiente de este lote…") y el botón queda desactivado hasta que se atiendan. Declarar un lote "no apto" nunca se bloquea, porque es la decisión prudente. Si el análisis pide revisar o no usar, además sigue siendo obligatoria la nota. Esta regla la aplica la app (la base de datos no puede contar las alertas de un lote); está anotada como limitación de confianza en el cliente.
-- Pruebas nuevas: 5 en `SaleReleaseTest` (total 248, por confirmar con Gradle).
+- Pruebas nuevas: 5 en `SaleReleaseTest` (total 248, verificado con Gradle).
