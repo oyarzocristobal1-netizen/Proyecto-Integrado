@@ -150,7 +150,10 @@ fun CurrentLotCard(
     }
 }
 
-/** Elegir uno de los lotes de hoy o crear el de un estanque. */
+/**
+ * Elegir uno de los lotes de hoy o crear el de un estanque. Solo hay una eleccion a la vez: si se marca un
+ * estanque nuevo, deja de verse marcado el lote actual de la lista de arriba.
+ */
 @Composable
 fun LotPickerDialog(
     todayLots: List<Lot>,
@@ -183,14 +186,14 @@ fun LotPickerDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .selectable(
-                                    selected = lot.id == currentLotId,
+                                    selected = tank.isBlank() && lot.id == currentLotId,
                                     enabled = !saving,
                                     role = Role.RadioButton,
                                     onClick = { onSelect(lot.id) }
                                 )
                                 .padding(vertical = 4.dp)
                         ) {
-                            RadioButton(selected = lot.id == currentLotId, onClick = null)
+                            RadioButton(selected = tank.isBlank() && lot.id == currentLotId, onClick = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(lot.tank, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
