@@ -53,7 +53,7 @@ npm test
 | `model/PasswordRulesTest` | 4 | Política de contraseñas para cuentas nuevas: 10 caracteres como mínimo y con mayúscula, minúscula y número; el texto de ayuda coincide |
 | `model/MyDayTest` | 8 | "Mi día" del trabajador (mediciones, % conformes, última, simuladas), inicio del día, recordatorios de la próxima medición (atrasados, próximos, lotes cerrados o de otro día, horizonte de 12 h), hora dicha con naturalidad ("a las…", "mañana a las…", "ayer a las…") y límite de la nota de revisión |
 | `model/RoleNoticesTest` | 10 | Avisos por rol: qué recibe cada rol, no repetir lo ya avisado, avisar solo de lo nuevo con el total, olvidar lo resuelto, el lechero no recibe avisos del encargado y al revés, un aviso por tipo, lote atrasado que vuelve a atrasarse |
-| **Total** | **243** | 232 verificados con Gradle (`.\gradlew test --rerun-tasks`) el 21-11-2026 + 11 por confirmar (1 de la hora del aviso y 10 de avisos por rol; pasan en el entorno de desarrollo) |
+| **Total** | **243** | Verificados con Gradle (`.\gradlew test --rerun-tasks`, conteo de los informes XML) el 21-11-2026: 243 correctas, 0 fallas |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 
@@ -92,6 +92,7 @@ npm test
 | **179 pruebas unitarias** tras la medición guiada y la proyección (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **179 correctas, 0 fallas**, BUILD SUCCESSFUL en 16 s | Computador del equipo, 20-11-2026 |
 | **228 pruebas unitarias** tras las mejoras del encargado y del trabajador (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **228 correctas, 0 fallas**, BUILD SUCCESSFUL en 21 s | Computador del equipo, 21-11-2026 |
 | **232 pruebas unitarias** tras agregar la política de contraseñas (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **232 correctas, 0 fallas**, BUILD SUCCESSFUL en 14 s | Computador del equipo, 21-11-2026 |
+| **243 pruebas unitarias** tras agregar la hora del aviso (hoy, mañana, ayer) y los avisos por rol (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **243 correctas, 0 fallas**, BUILD SUCCESSFUL en 17 s | Computador del equipo, 21-11-2026 |
 | 26 pruebas de reglas originales con el emulador (`npm test`) | 26 correctas, 0 fallidas | Computador del equipo, 16-11-2026 (primera corrida, antes de endurecer las reglas) |
 | **50 pruebas de reglas** (26 + 24 de seguridad) con las reglas endurecidas | **50 correctas, 0 fallidas** (10 grupos, 6,8 s) | Computador del equipo, 16-11-2026 |
 | **89 pruebas de reglas** (50 + CRUD ampliado, eliminaciones, liberar lote para venta, nota y revisión; `npm test`, 18 grupos) | **89 correctas, 0 fallidas, 0 canceladas** en 10,5 s | Computador del equipo, 21-11-2026 |
