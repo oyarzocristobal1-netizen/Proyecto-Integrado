@@ -39,6 +39,7 @@ Para quien no hizo la app: qué probar, qué capturar y cómo anotarlo. Los resu
 | 15 | Lechero | Medir con la muestra y el selector de lote | Pestaña Medir → Cambiar lote |
 | 16 | Encargado | Historial filtrado por "Conforme" y el "Análisis histórico" sin filtrar | Pestaña Historial |
 | 17 | Cualquiera | Notificación de aviso en la pantalla de bloqueo | Ver sección 4 |
+| 18 | Lechero | Mis mediciones con "Ver qué hacer" desplegado en una medición fuera de rango | Pestaña Historial → "Ver qué hacer" |
 
 Las capturas de la consola de Firebase (reglas publicadas, política de contraseñas) y de GitHub las saca Cristóbal, porque requieren su cuenta.
 

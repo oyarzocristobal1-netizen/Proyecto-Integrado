@@ -295,7 +295,9 @@ fun SavedMeasurementRow(
     /** Si se entrega, se muestra "Eliminar" (solo administrador; ultimo recurso). */
     onDelete: (() -> Unit)? = null,
     /** Si se entrega, se muestra "Marcar revisada" cuando el trabajador pidio revision (encargado y administrador). */
-    onReview: (() -> Unit)? = null
+    onReview: (() -> Unit)? = null,
+    /** Pasos recomendados de esta medicion (vacio si no hace falta: buena calidad o anulada). Quedan plegados. */
+    steps: List<String> = emptyList()
 ) {
     val status = AppTheme.status
     Card(
@@ -364,6 +366,19 @@ fun SavedMeasurementRow(
                     text = "Nota: ${measurement.note}",
                     style = MaterialTheme.typography.bodyMedium
                 )
+            }
+            if (!measurement.annulled && steps.isNotEmpty()) {
+                var showSteps by rememberSaveable(measurement.id) { mutableStateOf(false) }
+                TextButton(onClick = { showSteps = !showSteps }, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                    Text(if (showSteps) "Ocultar qué hacer" else "Ver qué hacer (${steps.size})")
+                }
+                if (showSteps) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        steps.forEach { step ->
+                            Text(text = "• $step", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
             }
             if (measurement.reviewDone) {
                 Text(

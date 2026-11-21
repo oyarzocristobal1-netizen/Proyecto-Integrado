@@ -44,6 +44,9 @@ import com.example.myapplication.model.CrudRules
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.data.asAnalysisReading
 import com.example.myapplication.model.analysis.LotAnalyzer
+import com.example.myapplication.model.analysis.MilkAnalyzer
+import com.example.myapplication.model.analysis.VerdictLevel
+import com.example.myapplication.model.analysis.verdict
 import com.example.myapplication.ui.components.HistoricalAnalysisSection
 import com.example.myapplication.ui.components.ConfirmDialog
 import com.example.myapplication.ui.components.EmptyState
@@ -186,8 +189,12 @@ fun HistoryScreen(
                 }
 
                 else -> items(shown, key = { it.id }) { m ->
+                    val steps = remember(m.id, state.historyValid, state.ranges) {
+                        recommendedSteps(m, state.historyValid, state.ranges)
+                    }
                     SavedMeasurementRow(
                         measurement = m,
+                        steps = steps,
                         lotName = state.lotName(m.lotId),
                         showMilker = canFilterLots,
                         onAnnul = if (session.role.canAnnulMeasurements) {
@@ -302,4 +309,23 @@ private fun LotFilter(label: String, options: List<Pair<String, String>>, onSele
             }
         }
     }
+}
+
+/**
+ * Pasos recomendados de una medicion, con el mismo analisis de la pantalla Medir (usa las mediciones
+ * anteriores del mismo lote). Si la calidad es buena o la medicion esta anulada, no hay pasos.
+ */
+private fun recommendedSteps(
+    m: SavedMeasurement,
+    valid: List<SavedMeasurement>,
+    ranges: com.example.myapplication.model.QualityRanges
+): List<String> {
+    if (m.annulled) return emptyList()
+    val current = m.asAnalysisReading()
+    val previous = valid
+        .filter { it.lotId == m.lotId && it.id != m.id }
+        .map { it.asAnalysisReading() }
+        .filter { it.timestamp < current.timestamp }
+    val verdict = MilkAnalyzer.analyze(current, previous, ranges).verdict()
+    return if (verdict.level == VerdictLevel.GOOD) emptyList() else verdict.steps
 }
