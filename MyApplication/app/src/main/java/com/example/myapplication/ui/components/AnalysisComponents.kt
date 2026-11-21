@@ -113,7 +113,6 @@ fun AnalysisSection(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                if (analysis.simulated) SimulatedBadge()
             }
         }
 
@@ -359,7 +358,6 @@ private fun LotAnalysisRow(item: LotAnalysis, name: String) {
             ) {
                 StatusPill(text = item.analysis.priority.label.uppercase(), tone = tone, icon = icon)
                 if (item.overdue) StatusPill(text = "Medición atrasada", tone = AppTheme.status.warning)
-                if (item.analysis.simulated) SimulatedBadge()
             }
             Text(text = item.analysis.headline, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             if (item.overdue) {
@@ -427,16 +425,6 @@ fun VerdictCard(verdict: Verdict, simulated: Boolean, modifier: Modifier = Modif
                 }
             }
             Text(text = verdict.message, style = MaterialTheme.typography.bodyMedium, color = tone.content)
-            if (simulated) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SimulatedBadge()
-                    Text(
-                        text = "Datos de ejemplo, no es leche real",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = tone.content.copy(alpha = 0.85f)
-                    )
-                }
-            }
         }
     }
 }

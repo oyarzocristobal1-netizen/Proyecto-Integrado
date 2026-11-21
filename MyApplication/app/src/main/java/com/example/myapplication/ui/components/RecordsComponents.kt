@@ -315,7 +315,6 @@ fun SavedMeasurementRow(
                 } else {
                     StatusPill(statusLabel(measurement.status), status.forStatus(measurement.status))
                 }
-                if (measurement.isSimulated) SimulatedBadge()
                 if (measurement.pendingSync) PendingSyncBadge()
                 if (measurement.reviewRequested) {
                     if (measurement.reviewDone) {

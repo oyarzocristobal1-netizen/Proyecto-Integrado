@@ -31,6 +31,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
+import com.example.myapplication.ui.components.LocalDemoData
 import com.example.myapplication.ui.MeasurementReminderEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -158,6 +160,9 @@ private fun MainScaffold(
     val records by recordsViewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val role = session.role
+    // Mientras haya datos simulados (modo DEMO), los titulos muestran una etiqueta "DEMO" discreta.
+    val measureState by measureViewModel.state.collectAsStateWithLifecycle()
+    val demoData = records.recentSimulatedCount > 0 || measureState.mode == MeasureMode.DEMO
 
     // Avisos de "toca medir" para las mediciones propias (se programan aunque se cierre la app).
     MeasurementReminderEffect(state = records, session = session)
@@ -173,6 +178,7 @@ private fun MainScaffold(
         recordsViewModel.messageShown()
     }
 
+    CompositionLocalProvider(LocalDemoData provides demoData) {
     Scaffold(
         // Cada pantalla maneja la barra de estado con su propia barra superior.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -307,6 +313,7 @@ private fun MainScaffold(
                 }
             }
         }
+    }
     }
 }
 

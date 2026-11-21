@@ -118,18 +118,6 @@ fun DashboardScreen(
                 }
             }
 
-            val simulatedShown = summary?.simulatedCount ?: 0
-            if (simulatedShown > 0) {
-                item {
-                    NoticeBanner(
-                        text = "El panel incluye $simulatedShown medición(es) simulada(s) del modo DEMO. " +
-                            "No corresponden a leche real. Elige \"Sensor\" para ver solo datos reales.",
-                        tone = status.simulated,
-                        icon = Icons.Outlined.Science
-                    )
-                }
-            }
-
             if (state.recentLoading && summary == null) {
                 item {
                     Row(

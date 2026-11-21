@@ -87,10 +87,12 @@ Simulador DEMO ─────────────────────�
   (Normal, Ácida, Mastitis, Diluida) con ruido pequeño, una lectura cada 2,5 s, solo mientras la pantalla se ve.
 - Toda lectura simulada lleva `origen = "simulado"` y se guarda con el dispositivo `simulador`.
   Las reglas de Firestore **impiden** guardar un dato simulado como si fuera del sensor (y al revés).
-- En la app se distinguen con la etiqueta violeta **SIMULADA** (historial, alertas, panel, evaluación) y el aviso
-  "MODO DEMO · Datos simulados". El panel avisa cuántas simuladas incluye y permite ver solo "Sensor".
-- Los reportes **excluyen las simuladas por defecto**; si se incluyen, cada fila dice "Simulada" en la columna
-  Origen y el resumen lo advierte.
+- En la app, para no repetir una marca en cada dato, un letrero pequeño **DEMO** aparece junto al título de cada pantalla
+  mientras haya datos simulados (se muestra solo mientras hay datos simulados o el modo Simulación está activo). El
+  panel permite filtrar por origen ("Sensor" / "Simuladas"). Dentro de la decisión de venta y de la comparativa se
+  mantiene una nota breve.
+- Los reportes y el resumen compartido **siguen marcando lo simulado**, porque salen de la app y circulan sin su contexto:
+  la columna Origen dice "Simulada" y el resumen advierte cuántas mediciones lo son.
 
 ## 5. Sin conexión, sincronización y errores
 

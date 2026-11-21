@@ -73,7 +73,6 @@ fun MyDayCard(state: RecordsUiState, session: UserSession, now: Long, modifier: 
                             else -> status.alert
                         }
                     )
-                    if (summary.simulatedCount > 0) SimulatedBadge()
                 }
                 Text(
                     "${summary.count} medición(es) hoy · ${summary.compliantCount} conforme(s)" +

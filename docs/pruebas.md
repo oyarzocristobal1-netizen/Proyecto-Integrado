@@ -100,7 +100,7 @@ npm test
 | # | Rol | Pasos | Resultado esperado |
 |---|---|---|---|
 | 1 | Cualquiera | Ingresar con correo verificado | Se abre el Panel con la barra inferior |
-| 2 | Lechero | Medir → elegir o crear lote "Estanque 1" → esperar "Lectura estable" → Registrar medición simulada | Mensaje de registro; aparece en Historial con SIMULADA |
+| 2 | Lechero | Medir → elegir o crear lote "Estanque 1" → esperar "Lectura estable" → Registrar medición simulada | Mensaje de registro; aparece en Historial y el título de la pantalla muestra el letrero DEMO |
 | 3 | Lechero | Medir → muestra "Mastitis" → registrar | Se generan alertas (pH, conductividad…) en la pestaña Alertas |
 | 4 | Lechero | Tocar Registrar dos veces seguidas | La segunda vez: "Esta lectura ya fue registrada" |
 | 5 | Cualquiera | Activar modo avión → registrar | Aviso "Sin conexión"; la medición queda "Sin sincronizar" y se sube al quitar el modo avión |
@@ -111,7 +111,7 @@ npm test
 | 10 | Admin | Más → Gestión de usuarios → desactivar una cuenta | Pide confirmación; esa cuenta ya no puede ingresar |
 | 11 | Lechero | Revisar la pestaña Más | No aparecen Lotes, Reportes, Rangos ni Usuarios |
 | 12 | Cualquiera | Medir → Caja de sensores sin caja emparejada | No muestra valores; indica conectar la caja |
-| 13 | Cualquiera | Cambiar el teléfono a tema oscuro | Colores legibles; semáforo y etiqueta SIMULADA se distinguen |
+| 13 | Cualquiera | Cambiar el teléfono a tema oscuro | Colores legibles; semáforo y letrero DEMO se distinguen |
 
 ## 6. Pendiente de probar con la caja de sensores
 

@@ -53,3 +53,9 @@ las secciones correspondientes del informe.
 - **Recordatorio de la próxima medición**: el análisis ya calcula a qué hora conviene volver a medir cada lote; con eso la app programa una notificación ("Hora de medir") que funciona aunque la app esté cerrada. Pide el permiso de notificaciones una vez (Android 13 o superior). Solo avisa de lotes de hoy que siguen abiertos y de las mediciones propias, y no muestra avisos si se cerró la sesión. Si el teléfono se reinicia, se reprograman al abrir la app. Los avisos son aproximados (alarmas sin permiso especial).
 - **Nota y "Pedir revisión"**: al registrar, el trabajador puede escribir una nota (≤200 caracteres) y pedir que el encargado revise la medición; si el análisis dice "No usar hasta verificar", la casilla viene marcada. El encargado ve las revisiones pedidas en Alertas (y un aviso en el panel de supervisión), las marca como hechas con una nota opcional, y el trabajador ve en su historial que fue revisada, por quién y qué se anotó.
 - Pruebas nuevas: `MyDayTest` (7) y 7 de reglas (nota y petición de revisión). Todo sigue marcado como simulado cuando viene del modo DEMO.
+
+## Identificación de datos simulados (limpieza visual)
+
+- Para no cargar la app con una marca en cada dato, se quitaron las insignias "SIMULADA" repetidas y los banners grandes de cada pantalla. En su lugar aparece un letrero pequeño **DEMO** junto al título, mientras haya datos simulados o el modo Simulación esté activo.
+- Los reportes (columna Origen y advertencia en el resumen) y el resumen diario compartido siguen indicando que los datos son simulados, porque salen de la app.
+- Lo simulado sigue guardándose con `origen = "simulado"` y el dispositivo `simulador`, y las reglas de Firestore impiden hacerlo pasar por dato del sensor.

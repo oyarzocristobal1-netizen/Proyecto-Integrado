@@ -385,7 +385,6 @@ private fun AlertRow(
                     modifier = Modifier.weight(1f)
                 )
             }
-            if (alert.isSimulated) SimulatedBadge()
             Text(
                 text = buildString {
                     append(dateText)
@@ -436,7 +435,6 @@ private fun AlertRow(
                         style = MaterialTheme.typography.bodySmall,
                         color = content
                     )
-                    if (measurement.isSimulated) SimulatedBadge()
                 }
             }
             if (canDelete) {

@@ -232,7 +232,6 @@ fun MeasureScreen(
 
             when (measure.mode) {
                 MeasureMode.DEMO -> {
-                    item { DemoModeBanner() }
                     item { ScenarioSelector(selected = measure.scenario, onSelect = measureViewModel::setScenario) }
                 }
                 MeasureMode.DEVICE -> item {
