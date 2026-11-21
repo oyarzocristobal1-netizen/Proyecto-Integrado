@@ -25,7 +25,7 @@ Texto base para la sección "Limitaciones y trabajo futuro" del informe. Cada li
 | Limitación | Detalle |
 |---|---|
 | Los avisos del teléfono no son en tiempo real. | Alertas, revisiones y lotes atrasados llegan al encargado, y las revisiones respondidas al lechero, mediante una revisión periódica (cada 15 minutos como mínimo; Android puede demorarla). El aviso inmediato requiere un servidor (Cloud Functions + FCM, plan de pago). |
-| Los recordatorios de medición son aproximados. | Usan alarmas inexactas de Android para ahorrar batería y se reprograman al abrir la app (por ejemplo, tras reiniciar el teléfono). No se verificó el aviso en un dispositivo real [completar con el resultado de la prueba]. |
+| Los recordatorios de medición son aproximados. | Usan alarmas inexactas de Android para ahorrar batería y se reprograman al abrir la app (por ejemplo, tras reiniciar el teléfono). Los avisos "Hora de medir" todavía no se han verificado en un dispositivo real. Los avisos por rol (alertas y revisiones pedidas al encargado) sí se verificaron en un teléfono el 21-11-2026: llegaron en la prueba, a unos minutos de generarse. Queda por verificar "Revisión respondida" (al lechero). |
 | La hora mostrada depende de la zona horaria del teléfono. | Si el teléfono tiene otra zona, la hora se ve desplazada, aunque el dato guardado es exacto. |
 | El funcionamiento sin conexión depende de la caché de Firestore y no tiene pruebas dedicadas. | Sin conexión, las lecturas ya descargadas siguen disponibles y las escrituras se envían al reconectar. |
 
