@@ -37,19 +37,37 @@ object SaleRelease {
         else -> null
     }
 
+    /**
+     * Motivo por el que el lote NO se puede liberar como apto todavia: quedan alertas o revisiones pedidas
+     * sin atender. Primero se atiende lo pendiente (queda quien y cuando) y despues se libera. Null si no hay
+     * impedimento. Declarar un lote "no apto" nunca se bloquea: es la decision prudente.
+     */
+    fun approvalBlockReason(pendingAlerts: Int, pendingReviews: Int): String? {
+        if (pendingAlerts <= 0 && pendingReviews <= 0) return null
+        val parts = buildList {
+            if (pendingAlerts > 0) add(if (pendingAlerts == 1) "1 alerta pendiente" else "$pendingAlerts alertas pendientes")
+            if (pendingReviews > 0) add(if (pendingReviews == 1) "1 revisión pedida" else "$pendingReviews revisiones pedidas")
+        }
+        return "Antes de liberar como apto, atiende en Alertas lo pendiente de este lote: ${parts.joinToString(" y ")}."
+    }
+
     /** Devuelve un mensaje si la decision no se puede guardar, o null si esta bien. */
     fun validate(
         decision: SaleDecision?,
         verdict: VerdictLevel?,
         note: String,
         measurementCount: Int,
-        overdue: Boolean
+        overdue: Boolean,
+        pendingAlerts: Int = 0,
+        pendingReviews: Int = 0
     ): String? {
         val clean = note.trim()
         val required = decision?.let { noteRequiredReason(it, verdict, overdue) }
         return when {
             decision == null -> "Elige si el lote es apto o no apto para venta."
             measurementCount <= 0 -> "El lote no tiene mediciones válidas: mide antes de decidir."
+            decision == SaleDecision.APTO && approvalBlockReason(pendingAlerts, pendingReviews) != null ->
+                approvalBlockReason(pendingAlerts, pendingReviews)
             clean.length > NOTE_MAX -> "La nota no puede superar $NOTE_MAX caracteres."
             required != null && clean.length < NOTE_MIN_WHEN_REQUIRED -> required
             else -> null

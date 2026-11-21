@@ -89,10 +89,17 @@ fun DashboardScreen(
         }
     }
 
+    // Si el filtro quedo oculto, no puede quedar activo (el panel se veria vacio sin motivo aparente).
+    LaunchedEffect(state.hasMixedOrigins, state.dashboardOrigin) {
+        if (!state.hasMixedOrigins && state.dashboardOrigin != OriginFilter.ALL) {
+            viewModel.setDashboardOrigin(OriginFilter.ALL)
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(title = { ScreenTitle("Calidad de Leche", "Hola, ${session.name.substringBefore(' ')} · ${session.role.label}") })
+            TopAppBar(title = { ScreenTitle("MilkQuality", "Hola, ${session.name.substringBefore(' ')} · ${session.role.label}") })
         }
     ) { innerPadding ->
         LazyColumn(
@@ -106,7 +113,8 @@ fun DashboardScreen(
                 item { OfflineBanner(state.pendingSyncCount) }
             }
 
-            item {
+            // El filtro por origen solo aparece si hay datos del sensor y simulados a la vez.
+            if (state.hasMixedOrigins) item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OriginFilter.entries.forEach { f ->
                         FilterChip(
@@ -115,18 +123,6 @@ fun DashboardScreen(
                             label = { Text(f.label) }
                         )
                     }
-                }
-            }
-
-            val simulatedShown = summary?.simulatedCount ?: 0
-            if (simulatedShown > 0) {
-                item {
-                    NoticeBanner(
-                        text = "El panel incluye $simulatedShown medición(es) simulada(s) del modo DEMO. " +
-                            "No corresponden a leche real. Elige \"Sensor\" para ver solo datos reales.",
-                        tone = status.simulated,
-                        icon = Icons.Outlined.Science
-                    )
                 }
             }
 
@@ -218,6 +214,11 @@ fun DashboardScreen(
                             }
                         }
                     }
+                }
+
+                // "Mi dia" (trabajador): sus propias mediciones, lo que le toca medir y sus revisiones pedidas.
+                if (!session.role.canViewAllHistory) item {
+                    MyDayCard(state = state, session = session, now = now)
                 }
 
                 // Supervision (encargado y administrador): estado por lote, lecheros, comparativas y resumen.

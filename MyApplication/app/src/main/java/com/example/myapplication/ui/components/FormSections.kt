@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -13,11 +14,37 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/**
+ * La app esta mostrando o guardando datos simulados (modo DEMO). La pone MainScaffold; mientras sea true,
+ * cada titulo de pantalla muestra una etiqueta "DEMO" pequena en lugar de marcar cada dato por separado.
+ */
+val LocalDemoData = compositionLocalOf { false }
+
+/** Etiqueta pequena "DEMO": se ve, pero no distrae. */
+@Composable
+private fun DemoTag() {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = com.example.myapplication.ui.theme.AppTheme.status.simulated.container
+    ) {
+        Text(
+            "DEMO",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = com.example.myapplication.ui.theme.AppTheme.status.simulated.content,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+        )
+    }
+}
+
 /** Titulo de pantalla con subtitulo (por ejemplo "Rangos de calidad" / "Fundo San Carlos"). */
 @Composable
 fun ScreenTitle(title: String, subtitle: String = "Fundo San Carlos") {
     Column {
-        Text(title, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            if (LocalDemoData.current) DemoTag()
+        }
         Text(
             subtitle,
             style = MaterialTheme.typography.bodyMedium,

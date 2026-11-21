@@ -150,7 +150,10 @@ fun CurrentLotCard(
     }
 }
 
-/** Elegir uno de los lotes de hoy o crear el de un estanque. */
+/**
+ * Elegir uno de los lotes de hoy o crear el de un estanque. Solo hay una eleccion a la vez: si se marca un
+ * estanque nuevo, deja de verse marcado el lote actual de la lista de arriba.
+ */
 @Composable
 fun LotPickerDialog(
     todayLots: List<Lot>,
@@ -183,14 +186,14 @@ fun LotPickerDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .selectable(
-                                    selected = lot.id == currentLotId,
+                                    selected = tank.isBlank() && lot.id == currentLotId,
                                     enabled = !saving,
                                     role = Role.RadioButton,
                                     onClick = { onSelect(lot.id) }
                                 )
                                 .padding(vertical = 4.dp)
                         ) {
-                            RadioButton(selected = lot.id == currentLotId, onClick = null)
+                            RadioButton(selected = tank.isBlank() && lot.id == currentLotId, onClick = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(lot.tank, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
@@ -206,7 +209,15 @@ fun LotPickerDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text("Nuevo lote", style = MaterialTheme.typography.labelLarge)
                 if (useCatalog) {
-                    tanks.forEach { t ->
+                    // Un estanque que ya tiene lote hoy no se ofrece otra vez: se elige arriba, en "Lotes de hoy".
+                    val withoutLot = tanks.filter { t -> todayLots.none { it.tank == t.name } }
+                    if (withoutLot.isEmpty()) {
+                        Text(
+                            "Todos los estanques ya tienen lote hoy. Elige uno de la lista de arriba.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    withoutLot.forEach { t ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -238,7 +249,7 @@ fun LotPickerDialog(
                     )
                 }
                 Text(
-                    "Se crea un lote por estanque y día. Si ya existe, se usa el mismo.",
+                    "Se crea un lote por estanque y día.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -282,7 +293,11 @@ fun SavedMeasurementRow(
     /** Si se entrega, se muestra el boton "Anular" (solo encargado y administrador). */
     onAnnul: (() -> Unit)? = null,
     /** Si se entrega, se muestra "Eliminar" (solo administrador; ultimo recurso). */
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    /** Si se entrega, se muestra "Marcar revisada" cuando el trabajador pidio revision (encargado y administrador). */
+    onReview: (() -> Unit)? = null,
+    /** Pasos recomendados de esta medicion (vacio si no hace falta: buena calidad o anulada). Quedan plegados. */
+    steps: List<String> = emptyList()
 ) {
     val status = AppTheme.status
     Card(
@@ -313,8 +328,14 @@ fun SavedMeasurementRow(
                 } else {
                     StatusPill(statusLabel(measurement.status), status.forStatus(measurement.status))
                 }
-                if (measurement.isSimulated) SimulatedBadge()
                 if (measurement.pendingSync) PendingSyncBadge()
+                if (measurement.reviewRequested) {
+                    if (measurement.reviewDone) {
+                        StatusPill("REVISADA", status.good)
+                    } else {
+                        StatusPill("REVISIÓN SOLICITADA", status.warning)
+                    }
+                }
             }
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -339,6 +360,44 @@ fun SavedMeasurementRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+            if (measurement.note.isNotBlank()) {
+                Text(
+                    text = "Nota: ${measurement.note}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (!measurement.annulled && steps.isNotEmpty()) {
+                var showSteps by rememberSaveable(measurement.id) { mutableStateOf(false) }
+                TextButton(onClick = { showSteps = !showSteps }, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                    Text(if (showSteps) "Ocultar qué hacer" else "Ver qué hacer (${steps.size})")
+                }
+                if (showSteps) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        steps.forEach { step ->
+                            Text(text = "• $step", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+            if (measurement.reviewDone) {
+                Text(
+                    text = buildString {
+                        append("Revisada")
+                        if (measurement.reviewByName.isNotBlank()) append(" por ${measurement.reviewByName}")
+                        measurement.reviewAt?.let { append(" el ${dayTime.format(it)}") }
+                        if (measurement.reviewNote.isNotBlank()) append("\nNota del encargado: ${measurement.reviewNote}")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (onReview != null && measurement.reviewRequested && !measurement.reviewDone && !measurement.annulled) {
+                Button(
+                    onClick = onReview,
+                    enabled = !measurement.pendingSync,
+                    modifier = Modifier.align(Alignment.End)
+                ) { Text("Marcar revisada") }
             }
             if (measurement.annulled) {
                 Text(

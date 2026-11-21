@@ -150,6 +150,13 @@ fun SupervisionPanel(
             }
         }
 
+        if (state.pendingReviews.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusPill("${state.pendingReviews.size} revisión(es) pedida(s)", status.warning)
+                TextButton(onClick = onOpenAlerts) { Text("Ver en Alertas") }
+            }
+        }
+
         if (todayLots.isEmpty()) {
             Text(
                 "Hoy todavía no hay lotes. Aparecerán cuando alguien registre la primera medición del día.",
@@ -162,7 +169,6 @@ fun SupervisionPanel(
             val level = analysis?.analysis?.verdict()?.level
             val count = todayMeasurements.count { it.lotId == lot.id }
             val pending = pendingByLot[lot.id] ?: 0
-            val simulated = todayMeasurements.any { it.lotId == lot.id && it.isSimulated }
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -202,7 +208,6 @@ fun SupervisionPanel(
                             StatusPill("Sin alertas pendientes", status.good)
                         }
                         SalePill(lot.sale)
-                        if (simulated) SimulatedBadge()
                     }
                     if (pending > 0) {
                         TextButton(onClick = onOpenAlerts) { Text("Ver alertas") }

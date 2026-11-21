@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.myapplication.data.DeletionRepository
-import com.example.myapplication.data.MIN_PASSWORD_LENGTH
+import com.example.myapplication.model.PasswordRules
 import com.example.myapplication.data.ManagedUser
 import com.example.myapplication.data.UserAdminRepository
 import com.example.myapplication.data.toUserMessage
@@ -59,7 +59,7 @@ class UserManagementViewModel(
             cleanName.length > MAX_NAME -> "El nombre no puede superar $MAX_NAME caracteres."
             cleanEmail.length > MAX_EMAIL -> "El correo no puede superar $MAX_EMAIL caracteres."
             !Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches() -> "Ingresa un correo válido."
-            password.length < MIN_PASSWORD_LENGTH -> "La contraseña inicial debe tener al menos $MIN_PASSWORD_LENGTH caracteres."
+            PasswordRules.validateNew(password) != null -> PasswordRules.validateNew(password)
             else -> null
         }
         if (error != null) {

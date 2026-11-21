@@ -1,11 +1,11 @@
-# Pruebas de la app Calidad de Leche
+# Pruebas de la app MilkQuality
 
 Todo lo que se puede validar **sin la caja de sensores** tiene pruebas automáticas. Lo que depende del
 hardware está listado al final como pendiente.
 
 ## 1. Cómo ejecutarlas
 
-**Pruebas unitarias (220)** — en la carpeta `MyApplication`:
+**Pruebas unitarias (248)** — en la carpeta `MyApplication`:
 
 ```
 .\gradlew test          (Windows)
@@ -15,7 +15,7 @@ hardware está listado al final como pendiente.
 El informe queda en `MyApplication/app/build/reports/tests/testDebugUnitTest/index.html`.
 En Android Studio también se pueden ejecutar con clic derecho sobre `app/src/test` → *Run Tests*.
 
-**Pruebas de las reglas de Firestore (81: 50 anteriores + 27 del CRUD ampliado y las eliminaciones + 4 de liberar lotes para venta)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
+**Pruebas de las reglas de Firestore (89: 50 anteriores + 28 del CRUD ampliado y las eliminaciones + 4 de liberar lotes para venta + 7 de nota y revisión)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
 no tocan la base real):
 
 ```
@@ -40,7 +40,7 @@ npm test
 | `sensor/DemoReadingGeneratorTest` | 5 | Las lecturas del modo DEMO salen marcadas como simuladas y dentro de los límites; la muestra Variada cambia en cada medición e incluye casos buenos y alterados |
 | `report/ReportWritersTest` | 8 | CSV (BOM, punto y coma, coma decimal, neutralización de fórmulas), Excel y Word válidos, reporte vacío, caracteres especiales, resumen con advertencia de datos simulados |
 | `viewmodel/MeasureViewModelTest` | 10 | Pantalla Medir con una caja falsa: sin conexión no hay lecturas inventadas, lecturas de la caja solo en modo caja, registrar solo con lectura estable y reciente, desconexión al volver a DEMO, simulación solo con la pantalla visible, permiso de Bluetooth |
-| `viewmodel/RecordsUiStateTest` | 3 | Filtros del historial por origen y semáforo, contadores de pendientes de sincronizar y simuladas |
+| `viewmodel/RecordsUiStateTest` | 4 | Filtros del historial por origen y semáforo, contadores de pendientes de sincronizar y simuladas, y el filtro por origen solo aparece si hay datos del sensor y simulados |
 | `model/analysis/MilkAnalyzerTest` | 43 | Análisis inteligente: 1 a 4 parámetros alterados, niveles leve/moderado/crítico, prioridad, lecturas inválidas y contradictorias, historial (repetición, tendencias, sin historial), configuración y rotulado DEMO (ver `docs/analisis.md`) |
 | `model/analysis/LotAnalyzerTest` | 9 | Análisis por lote: orden por prioridad, no mezcla mediciones de otro lote, mediciones sin lote, mediciones atrasadas |
 | `model/analysis/ForecastTest` | 23 | Proyección: datos insuficientes, conductividad que sube o baja, temperatura que enfría, pH, turbidez, cambios lentos, tiempo sugerido para remedir |
@@ -48,9 +48,12 @@ npm test
 | `model/analysis/ProgressAnalyzerTest` | 10 | Seguimiento: mejoró, empeoró o sin cambios respecto de la muestra anterior del lote |
 | `model/analysis/FindingTextTest` | 4 | Texto de estado de cada recuadro ("Dentro del rango", "Leve · alta", etc.) y que cabe en el recuadro |
 | `sensor/DemoAnalysisScenariosTest` | 2 | Los 7 escenarios DEMO nuevos producen el análisis esperado con 300 lecturas con ruido cada uno |
-| `model/SaleReleaseTest` | 8 | Liberar lote para venta: sugerencia según el veredicto, nota obligatoria al liberar contra el análisis o con medición atrasada, sin mediciones no se decide, límite de la nota |
+| `model/SaleReleaseTest` | 13 | Liberar lote para venta: sugerencia según el veredicto, nota obligatoria al liberar contra el análisis o con medición atrasada, sin mediciones no se decide, límite de la nota, no se libera como apto con alertas o revisiones pedidas sin atender (declarar no apto nunca se bloquea) |
 | `model/SupervisionTest` | 10 | Supervisión del encargado: agrupar por lechero o estanque, % conforme, promedios, conteo de simuladas, mediciones desde el inicio del día, texto del resumen diario (con aviso de SIMULADAS) |
-| **Total** | **220** | 179 verificados con Gradle el 20-11-2026 + 7 (textos de estado y aviso flotante) + 9 (CrudRulesTest) + 7 (DeletionRulesTest) + 8 (SaleReleaseTest) + 10 (SupervisionTest), por confirmar con `.\gradlew test --rerun-tasks` |
+| `model/PasswordRulesTest` | 4 | Política de contraseñas para cuentas nuevas: 10 caracteres como mínimo y con mayúscula, minúscula y número; el texto de ayuda coincide |
+| `model/MyDayTest` | 8 | "Mi día" del trabajador (mediciones, % conformes, última, simuladas), inicio del día, recordatorios de la próxima medición (atrasados, próximos, lotes cerrados o de otro día, horizonte de 12 h), hora dicha con naturalidad ("a las…", "mañana a las…", "ayer a las…") y límite de la nota de revisión |
+| `model/RoleNoticesTest` | 10 | Avisos por rol: qué recibe cada rol, no repetir lo ya avisado, avisar solo de lo nuevo con el total, olvidar lo resuelto, el lechero no recibe avisos del encargado y al revés, un aviso por tipo, lote atrasado que vuelve a atrasarse |
+| **Total** | **248** | Verificados con Gradle (`.\gradlew test --rerun-tasks`, conteo de los informes XML) el 21-11-2026: 248 correctas, 0 fallas |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 
@@ -62,7 +65,7 @@ npm test
 | Mediciones | 9 | Medición + alerta en una escritura; dato simulado no puede pasar por sensor; límites físicos; hora del servidor; lote y caja existentes; inmutables; lectura según el rol |
 | Alertas | 4 | Requieren su medición, ID `medicion-tipo`, tipo y estado válidos; solo encargado/admin las atienden |
 | Rangos | 2 | Solo el admin guarda rangos coherentes; todos los usuarios activos los leen |
-| Seguridad: eliminar solo el administrador | 5 | Encargado y lechero no borran nada; sin sesión, correo sin verificar o cuenta desactivada tampoco; el admin borra todo menos los rangos y su propio perfil; borrado disfrazado; medición + alertas + bitácora en una escritura (ver [seguridad.md](seguridad.md)) |
+| Seguridad: eliminar solo el administrador | 6 | Encargado y lechero no borran nada; sin sesión, correo sin verificar o cuenta desactivada tampoco; el admin borra todo menos los rangos y su propio perfil; borrado disfrazado; medición + alertas + bitácora en una escritura (ver [seguridad.md](seguridad.md)) |
 | Bitácora de eliminaciones | 3 | Solo el admin anota y lee, con su nombre y hora del servidor; formato válido; no se edita ni se borra |
 | Seguridad: escalada de privilegios | 6 | Cambio de rol, cuentas sin perfil, administrador desactivado |
 | Seguridad: lectura de datos ajenos | 4 | Perfiles de otros, colecciones no definidas |
@@ -71,9 +74,10 @@ npm test
 | Cierre de lotes | 5 | Cerrar y reabrir deja quién y cuándo; un lote cerrado no admite mediciones; el lechero no puede cerrar |
 | Anular mediciones (baja lógica) | 6 | Solo encargado/admin; exige motivo (3–200), nombre propio y hora del servidor; no se tocan los valores medidos ni se desanula |
 | Liberar lote para venta | 4 | Solo encargado/admin deciden apto o no apto; exige quién y hora del servidor; nota ≤200; el lechero no puede; se puede cambiar la decisión |
+| Nota y petición de revisión | 7 | El trabajador guarda nota (≤200) y pide revisión al registrar; no puede crear la revisión ya hecha ni campos extra; solo encargado/admin la marcan, una vez, con su nombre y la hora del servidor; solo donde se pidió y sin tocar otros campos |
 | Alertas atendidas con nota | 6 | Atender con nota opcional, quién y cuándo; editar solo la nota; el formato anterior sigue valiendo |
 | Dispositivos y calibraciones (admin) | 4 | Solo el admin; calibración con dispositivo existente, fecha del servidor y responsable; solo se corrige la nota |
-| **Total** | **81** | 29 nuevas aún sin ejecutar en el emulador (no se pudo descargar en el entorno de desarrollo): `npm test` en `firebase/tests` |
+| **Total** | **89** | Ejecutadas con el emulador en el computador del equipo el 21-11-2026: 89 correctas, 0 fallidas (el emulador no se puede descargar en el entorno de desarrollo en la nube) |
 
 ## 4. Resultados obtenidos
 
@@ -86,8 +90,13 @@ npm test
 | **81 pruebas unitarias** (total de los resultados XML de Gradle) | **81 correctas, 0 fallas**, BUILD SUCCESSFUL en 13 s | Computador del equipo, 16-11-2026 |
 | **133 pruebas unitarias** tras agregar el análisis inteligente (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **133 correctas, 0 fallas, 0 errores**, BUILD SUCCESSFUL en 15 s | Computador del equipo, 16-11-2026 |
 | **179 pruebas unitarias** tras la medición guiada y la proyección (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **179 correctas, 0 fallas**, BUILD SUCCESSFUL en 16 s | Computador del equipo, 20-11-2026 |
+| **228 pruebas unitarias** tras las mejoras del encargado y del trabajador (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **228 correctas, 0 fallas**, BUILD SUCCESSFUL en 21 s | Computador del equipo, 21-11-2026 |
+| **232 pruebas unitarias** tras agregar la política de contraseñas (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **232 correctas, 0 fallas**, BUILD SUCCESSFUL en 14 s | Computador del equipo, 21-11-2026 |
+| **243 pruebas unitarias** tras agregar la hora del aviso (hoy, mañana, ayer) y los avisos por rol (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **243 correctas, 0 fallas**, BUILD SUCCESSFUL en 17 s | Computador del equipo, 21-11-2026 |
+| **248 pruebas unitarias** tras agregar la regla de venta (no liberar como apto con alertas o revisiones pendientes) (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **248 correctas, 0 fallas**, BUILD SUCCESSFUL en 21 s | Computador del equipo, 21-11-2026 |
 | 26 pruebas de reglas originales con el emulador (`npm test`) | 26 correctas, 0 fallidas | Computador del equipo, 16-11-2026 (primera corrida, antes de endurecer las reglas) |
 | **50 pruebas de reglas** (26 + 24 de seguridad) con las reglas endurecidas | **50 correctas, 0 fallidas** (10 grupos, 6,8 s) | Computador del equipo, 16-11-2026 |
+| **89 pruebas de reglas** (50 + CRUD ampliado, eliminaciones, liberar lote para venta, nota y revisión; `npm test`, 18 grupos) | **89 correctas, 0 fallidas, 0 canceladas** en 10,5 s | Computador del equipo, 21-11-2026 |
 | Compilación de la app y prueba en teléfono | Correcta (app instalada y usada en modo DEMO) | Android Studio y teléfono del equipo |
 
 
@@ -97,7 +106,7 @@ npm test
 | # | Rol | Pasos | Resultado esperado |
 |---|---|---|---|
 | 1 | Cualquiera | Ingresar con correo verificado | Se abre el Panel con la barra inferior |
-| 2 | Lechero | Medir → elegir o crear lote "Estanque 1" → esperar "Lectura estable" → Registrar medición simulada | Mensaje de registro; aparece en Historial con SIMULADA |
+| 2 | Lechero | Medir → elegir o crear lote "Estanque 1" → esperar "Lectura estable" → Registrar medición simulada | Mensaje de registro; aparece en Historial y el título de la pantalla muestra el letrero DEMO |
 | 3 | Lechero | Medir → muestra "Mastitis" → registrar | Se generan alertas (pH, conductividad…) en la pestaña Alertas |
 | 4 | Lechero | Tocar Registrar dos veces seguidas | La segunda vez: "Esta lectura ya fue registrada" |
 | 5 | Cualquiera | Activar modo avión → registrar | Aviso "Sin conexión"; la medición queda "Sin sincronizar" y se sube al quitar el modo avión |
@@ -107,8 +116,8 @@ npm test
 | 9 | Admin | Más → Rangos → pH mínimo mayor que el máximo → Guardar | Mensaje de error, no se guarda |
 | 10 | Admin | Más → Gestión de usuarios → desactivar una cuenta | Pide confirmación; esa cuenta ya no puede ingresar |
 | 11 | Lechero | Revisar la pestaña Más | No aparecen Lotes, Reportes, Rangos ni Usuarios |
-| 12 | Cualquiera | Medir → Caja de sensores sin caja emparejada | No muestra valores; indica conectar la caja |
-| 13 | Cualquiera | Cambiar el teléfono a tema oscuro | Colores legibles; semáforo y etiqueta SIMULADA se distinguen |
+| 12 | Cualquiera | Medir: comprobar que no hay selector Simulación / Caja de sensores | Solo aparece la elección de la muestra simulada. El comportamiento sin caja (no inventa valores) está cubierto por `MeasureViewModelTest` |
+| 13 | Cualquiera | Cambiar el teléfono a tema oscuro | Colores legibles; semáforo y letrero DEMO se distinguen |
 
 ## 6. Pendiente de probar con la caja de sensores
 

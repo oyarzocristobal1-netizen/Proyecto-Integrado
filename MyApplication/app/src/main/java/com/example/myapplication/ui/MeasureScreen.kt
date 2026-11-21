@@ -67,6 +67,7 @@ import com.example.myapplication.ui.components.CurrentLotCard
 import com.example.myapplication.ui.components.DemoModeBanner
 import com.example.myapplication.ui.components.DeviceSelectionDialog
 import com.example.myapplication.ui.components.LotPickerDialog
+import com.example.myapplication.ui.components.MeasurementNoteCard
 import com.example.myapplication.ui.components.NoticeBanner
 import com.example.myapplication.ui.components.OfflineBanner
 import androidx.compose.material3.LinearProgressIndicator
@@ -100,6 +101,9 @@ import com.example.myapplication.viewmodel.MeasureUiState
 import com.example.myapplication.viewmodel.MeasureViewModel
 import com.example.myapplication.viewmodel.RecordsViewModel
 
+/** Muestra el selector Simulacion | Caja de sensores en la pantalla Medir (oculto: la caja no estara disponible). */
+private const val SHOW_MODE_SELECTOR = false
+
 /**
  * Tomar una medicion (CU1): lectura en vivo (simulada o de la caja), su evaluacion y el registro
  * en el lote activo. El boton Registrar solo se habilita con una lectura reciente y estable.
@@ -119,7 +123,12 @@ fun MeasureScreen(
     var phase by remember { mutableStateOf(MeasurePhase.IDLE) }
     var result by remember { mutableStateOf<MilkQualityReading?>(null) }
     var startedAt by remember { mutableLongStateOf(0L) }
+    // Nota y peticion de revision de la medicion en pantalla (valen solo para esa medicion).
+    var noteText by rememberSaveable { mutableStateOf("") }
+    var requestReview by rememberSaveable { mutableStateOf(false) }
     val startMeasuring: () -> Unit = {
+        noteText = ""
+        requestReview = false
         result = null
         startedAt = System.currentTimeMillis()
         measureViewModel.startMeasurement()
@@ -136,6 +145,10 @@ fun MeasureScreen(
         doneReading?.let { MilkAnalyzer.analyze(it.toAnalysisReading(lotId), previous, records.ranges) }
     }
     val verdict = remember(analysis) { analysis?.verdict() }
+    // Si el analisis dice "No usar hasta verificar", la revision viene marcada (se puede desmarcar).
+    LaunchedEffect(doneReading) {
+        requestReview = verdict?.level == VerdictLevel.STOP
+    }
     val progress = remember(doneReading, previous, lotId, records.ranges) {
         doneReading?.let { ProgressAnalyzer.compare(it.toAnalysisReading(lotId), previous, records.ranges) }
     }
@@ -207,7 +220,9 @@ fun MeasureScreen(
                 item { OfflineBanner(records.pendingSyncCount) }
             }
 
-            item {
+            // La caja de sensores no estara disponible: el selector Simulacion / Caja queda oculto.
+            // La conexion por Bluetooth sigue implementada; para volver a mostrarlo basta cambiar la constante.
+            if (SHOW_MODE_SELECTOR) item {
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                     MeasureMode.entries.forEachIndexed { index, mode ->
                         SegmentedButton(
@@ -222,7 +237,6 @@ fun MeasureScreen(
 
             when (measure.mode) {
                 MeasureMode.DEMO -> {
-                    item { DemoModeBanner() }
                     item { ScenarioSelector(selected = measure.scenario, onSelect = measureViewModel::setScenario) }
                 }
                 MeasureMode.DEVICE -> item {
@@ -280,6 +294,16 @@ fun MeasureScreen(
                         }
                         item { GlossaryCard(ParameterGlossary.entries(records.ranges)) }
                         item {
+                            MeasurementNoteCard(
+                                note = noteText,
+                                onNoteChange = { noteText = it },
+                                requestReview = requestReview,
+                                onRequestReviewChange = { requestReview = it },
+                                suggestReview = verdict.level != VerdictLevel.GOOD,
+                                enabled = !records.saving
+                            )
+                        }
+                        item {
                             CurrentLotCard(
                                 currentLot = records.currentLot,
                                 saving = records.saving,
@@ -290,7 +314,15 @@ fun MeasureScreen(
                                 onRecord = {
                                     // Se guarda lo que se mostro mientras siga vigente; si no, la lectura actual de la misma muestra.
                                     val fresh = reading.takeIf { measure.now - it.timestamp <= MeasurementValidator.MAX_READING_AGE_MS }
-                                    recordsViewModel.recordMeasurement(fresh ?: measure.reading, measure.stability)
+                                    recordsViewModel.recordMeasurement(
+                                        fresh ?: measure.reading,
+                                        measure.stability,
+                                        note = noteText,
+                                        requestReview = requestReview
+                                    )
+                                    // La nota y la peticion valen para una sola medicion.
+                                    noteText = ""
+                                    requestReview = false
                                 }
                             )
                         }

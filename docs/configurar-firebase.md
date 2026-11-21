@@ -1,4 +1,4 @@
-# Configurar Firebase para la app Calidad de Leche
+# Configurar Firebase para la app MilkQuality
 
 Proyecto de Firebase: `medidor-calidad-de-la-leche`. Paquete de la app: `com.example.myapplication`.
 
@@ -22,9 +22,14 @@ Después, el administrador crea las cuentas del **encargado** y de los **lechero
 **Más → Gestión de usuarios → Nuevo trabajador**. La app crea la cuenta, guarda su perfil
 y le envía el correo de verificación, sin cerrar la sesión del administrador.
 
+**Política de contraseñas (una sola vez, en la consola):** *Authentication → Settings (Configuración) → Password policy
+(Política de contraseñas) → Edit*. Activar con **Enforcement: Require**, largo mínimo **10**, y marcar **mayúscula**,
+**minúscula** y **número** (no exigir carácter especial). Es la misma regla que valida la app al crear cuentas. Las cuentas
+que ya existen no se ven afectadas hasta que cambian su contraseña.
+
 Primera cuenta de administrador, en la consola:
 
-1. **Authentication → Users → Agregar usuario.** Correo real y contraseña de **10 caracteres o más**.
+1. **Authentication → Users → Agregar usuario.** Correo real y contraseña de **10 caracteres o más, con mayúscula, minúscula y número**.
 2. Copia el **UID** que aparece en la lista de usuarios.
 3. **Firestore Database → Datos → Iniciar colección** `usuarios` (la primera vez).
 4. Crea un documento cuyo **ID sea el UID** copiado, con estos campos:

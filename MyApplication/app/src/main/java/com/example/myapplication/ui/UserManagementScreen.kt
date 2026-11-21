@@ -27,7 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.myapplication.data.MIN_PASSWORD_LENGTH
+import com.example.myapplication.model.PasswordRules
 import com.example.myapplication.data.ManagedUser
 import com.example.myapplication.model.Role
 import com.example.myapplication.ui.components.ConfirmDialog
@@ -376,7 +376,7 @@ private fun CreateUserDialog(
                     value = password,
                     onValueChange = { password = it },
                     label = { Text("Contraseña inicial") },
-                    supportingText = { Text("Mínimo $MIN_PASSWORD_LENGTH caracteres. Entrégasela al trabajador.") },
+                    supportingText = { Text("${PasswordRules.HINT} Entrégasela al trabajador.") },
                     singleLine = true,
                     enabled = !saving,
                     visualTransformation = PasswordVisualTransformation(),

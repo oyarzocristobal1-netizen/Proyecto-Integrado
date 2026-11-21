@@ -5,6 +5,7 @@ import com.example.myapplication.model.MilkQualityReading
 import com.example.myapplication.model.QualityRanges
 import com.example.myapplication.model.ReadingSource
 import com.example.myapplication.model.RecordRules
+import com.example.myapplication.model.ReviewRules
 import com.example.myapplication.model.SaleDecision
 import com.example.myapplication.model.DeletionRules
 import com.example.myapplication.model.UserSession
@@ -29,6 +30,9 @@ const val REPORT_LIMIT = 2000L
 
 /** Maximo de mediciones que lee el panel principal (ultimos 7 dias). */
 const val DASHBOARD_LIMIT = 500L
+
+/** Maximo de documentos por consulta de los avisos en segundo plano (cuida el consumo de lecturas). */
+const val NOTICE_LIMIT = 200L
 
 /** Lote: la leche de un estanque en un dia (informe, Tabla 20: un lote por estanque y dia). */
 data class Lot(
@@ -80,7 +84,15 @@ data class SavedMeasurement(
     val annulled: Boolean = false,
     val annulReason: String = "",
     val annulledByName: String = "",
-    val annulledAt: Date? = null
+    val annulledAt: Date? = null,
+    /** Nota que escribio el trabajador al registrar (vacia si no escribio nada). */
+    val note: String = "",
+    /** El trabajador pidio que el encargado revise esta medicion. */
+    val reviewRequested: Boolean = false,
+    val reviewDone: Boolean = false,
+    val reviewByName: String = "",
+    val reviewAt: Date? = null,
+    val reviewNote: String = ""
 ) {
     val isSimulated: Boolean get() = source == ReadingSource.SIMULATED
 }
@@ -289,12 +301,20 @@ class RecordsRepository(
         session: UserSession,
         ranges: QualityRanges,
         onSynced: () -> Unit,
-        onError: (Exception) -> Unit
+        onError: (Exception) -> Unit,
+        note: String = "",
+        requestReview: Boolean = false
     ): RecordResult {
         val id = UUID.randomUUID().toString()
         val assessment = reading.overallAssessment
         val measuredAt = Timestamp(Date(reading.timestamp))
         val batch = db.batch()
+        val cleanNote = ReviewRules.clean(note)
+        // Campos opcionales: solo se guardan si el trabajador escribio una nota o pidio revision.
+        val extras = buildMap<String, Any> {
+            if (cleanNote.isNotEmpty()) put("nota", cleanNote)
+            if (requestReview) put("revision", true)
+        }
         batch.set(
             measurements.document(id),
             mapOf(
@@ -316,7 +336,7 @@ class RecordsRepository(
                     "estado" to RecordRules.statusFor(assessment.level),
                     "titulo" to assessment.title
                 )
-            )
+            ) + extras
         )
         val candidates = detectAlerts(reading, ranges)
         candidates.forEach { a ->
@@ -415,6 +435,17 @@ class RecordsRepository(
         ).await()
     }
 
+    /** El encargado marca como revisada una medicion en la que se pidio revision (con nota opcional). */
+    suspend fun resolveReview(measurementId: String, note: String, session: UserSession) {
+        val data = mutableMapOf<String, Any>(
+            "revisionAtendida" to true,
+            "revisionPor" to session.name,
+            "revisionEn" to FieldValue.serverTimestamp()
+        )
+        if (note.isNotBlank()) data["revisionNota"] = note.trim()
+        measurements.document(measurementId).update(data).await()
+    }
+
     // ---------------------------------------------------------------- alertas
 
     /** Alertas en tiempo real: solo pendientes (consulta Q5) o todas las recientes. */
@@ -493,6 +524,66 @@ class RecordsRepository(
             .get(Source.SERVER).await()
             // Las anuladas no cuentan en los reportes (siguen guardadas y visibles en el historial).
             .documents.mapNotNull { it.toMeasurement() }.filterNot { it.annulled }
+    }
+
+    // ----------------------------------------------- avisos en segundo plano
+
+    /*
+     * Lecturas puntuales (no en tiempo real) para los avisos del telefono (RoleNoticesWorker).
+     * Usan solo consultas que ya existen (mismos indices) y piden pocos documentos.
+     */
+
+    /** Alertas pendientes (las mismas del tablero de alertas). */
+    suspend fun fetchPendingAlerts(): List<MilkAlert> =
+        alerts.whereEqualTo("atendida", false)
+            .orderBy("fecha", Query.Direction.DESCENDING)
+            .limit(HISTORY_PAGE_SIZE)
+            .get().await()
+            .documents.mapNotNull { it.toAlert() }
+
+    /**
+     * Mediciones donde se pidio revision. Encargado y administrador ven todas; el lechero solo las suyas
+     * (la regla de Firestore exige el filtro por su uid).
+     */
+    suspend fun fetchReviewRequests(onlyOfUid: String?): List<SavedMeasurement> {
+        var query: Query = measurements
+        if (onlyOfUid != null) query = query.whereEqualTo("uidLechero", onlyOfUid)
+        return query.whereEqualTo("revision", true)
+            .limit(NOTICE_LIMIT)
+            .get().await()
+            .documents.mapNotNull { it.toMeasurement() }
+    }
+
+    /** Mediciones desde [since] (todas, para encargado y administrador), de la mas nueva a la mas antigua. */
+    suspend fun fetchMeasurementsSince(since: Date): List<SavedMeasurement> =
+        measurements.whereGreaterThanOrEqualTo("fechaHora", Timestamp(since))
+            .orderBy("fechaHora", Query.Direction.DESCENDING)
+            .limit(NOTICE_LIMIT)
+            .get().await()
+            .documents.mapNotNull { it.toMeasurement() }
+
+    /** Lotes creados desde [since]. */
+    suspend fun fetchLotsSince(since: Date): List<Lot> =
+        lots.whereGreaterThanOrEqualTo("fecha", Timestamp(since))
+            .limit(NOTICE_LIMIT)
+            .get().await()
+            .documents.mapNotNull { it.toLot() }
+
+    /** Rangos vigentes, una sola lectura (por defecto si no existe o esta mal editado). */
+    suspend fun fetchRanges(): QualityRanges {
+        val d = QualityRanges()
+        val snapshot = rangesDoc.get().await()
+        if (!snapshot.exists()) return d
+        fun num(field: String, default: Float) = snapshot.getDouble(field)?.toFloat() ?: default
+        val ranges = QualityRanges(
+            tempMax = num("tempMax", d.tempMax),
+            phMin = num("phMin", d.phMin),
+            phMax = num("phMax", d.phMax),
+            condMin = num("condMin", d.condMin),
+            condMax = num("condMax", d.condMax),
+            turbMin = num("turbMin", d.turbMin)
+        )
+        return if (ranges.validate() == null) ranges else d
     }
 
     // ------------------------------------------------------------------ rangos
@@ -611,7 +702,13 @@ class RecordsRepository(
             annulled = getBoolean("anulada") == true,
             annulReason = getString("motivoAnulacion").orEmpty(),
             annulledByName = getString("anuladaPor").orEmpty(),
-            annulledAt = getTimestamp("anuladaEn")?.toDate()
+            annulledAt = getTimestamp("anuladaEn")?.toDate(),
+            note = getString("nota").orEmpty(),
+            reviewRequested = getBoolean("revision") == true,
+            reviewDone = getBoolean("revisionAtendida") == true,
+            reviewByName = getString("revisionPor").orEmpty(),
+            reviewAt = getTimestamp("revisionEn")?.toDate(),
+            reviewNote = getString("revisionNota").orEmpty()
         )
     }
 

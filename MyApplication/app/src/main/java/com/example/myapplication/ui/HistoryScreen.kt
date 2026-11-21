@@ -30,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +44,9 @@ import com.example.myapplication.model.CrudRules
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.data.asAnalysisReading
 import com.example.myapplication.model.analysis.LotAnalyzer
+import com.example.myapplication.model.analysis.MilkAnalyzer
+import com.example.myapplication.model.analysis.VerdictLevel
+import com.example.myapplication.model.analysis.verdict
 import com.example.myapplication.ui.components.HistoricalAnalysisSection
 import com.example.myapplication.ui.components.ConfirmDialog
 import com.example.myapplication.ui.components.EmptyState
@@ -72,6 +76,13 @@ fun HistoryScreen(
     val shown = state.filteredHistory
     var annulling by remember { mutableStateOf<SavedMeasurement?>(null) }
     var deleting by remember { mutableStateOf<SavedMeasurement?>(null) }
+
+    // Si el filtro por origen quedo oculto, no puede quedar activo.
+    LaunchedEffect(state.hasMixedOrigins, state.historyOrigin) {
+        if (!state.hasMixedOrigins && state.historyOrigin != OriginFilter.ALL) {
+            viewModel.setHistoryOrigin(OriginFilter.ALL)
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -106,7 +117,8 @@ fun HistoryScreen(
                             onSelect = viewModel::setHistoryLotFilter
                         )
                     }
-                    ChipRow {
+                    // El filtro por origen solo aparece si hay datos del sensor y simulados a la vez.
+                    if (state.hasMixedOrigins) ChipRow {
                         OriginFilter.entries.forEach { f ->
                             FilterChip(
                                 selected = state.historyOrigin == f,
@@ -127,7 +139,10 @@ fun HistoryScreen(
                 }
             }
 
-            if (canFilterLots && state.history.isNotEmpty()) {
+            // El analisis resume cada lote completo: con un filtro de resultado u origen activo se oculta,
+            // para que la lista filtrada quede a la vista justo debajo de los filtros.
+            val filtering = state.historyStatus != StatusFilter.ALL || state.historyOrigin != OriginFilter.ALL
+            if (canFilterLots && state.history.isNotEmpty() && !filtering) {
                 item {
                     val lotAnalyses = remember(state.history, state.ranges) {
                         LotAnalyzer.analyze(state.historyValid.map { it.asAnalysisReading() }, state.ranges)
@@ -174,8 +189,12 @@ fun HistoryScreen(
                 }
 
                 else -> items(shown, key = { it.id }) { m ->
+                    val steps = remember(m.id, state.historyValid, state.ranges) {
+                        recommendedSteps(m, state.historyValid, state.ranges)
+                    }
                     SavedMeasurementRow(
                         measurement = m,
+                        steps = steps,
                         lotName = state.lotName(m.lotId),
                         showMilker = canFilterLots,
                         onAnnul = if (session.role.canAnnulMeasurements) {
@@ -290,4 +309,23 @@ private fun LotFilter(label: String, options: List<Pair<String, String>>, onSele
             }
         }
     }
+}
+
+/**
+ * Pasos recomendados de una medicion, con el mismo analisis de la pantalla Medir (usa las mediciones
+ * anteriores del mismo lote). Si la calidad es buena o la medicion esta anulada, no hay pasos.
+ */
+private fun recommendedSteps(
+    m: SavedMeasurement,
+    valid: List<SavedMeasurement>,
+    ranges: com.example.myapplication.model.QualityRanges
+): List<String> {
+    if (m.annulled) return emptyList()
+    val current = m.asAnalysisReading()
+    val previous = valid
+        .filter { it.lotId == m.lotId && it.id != m.id }
+        .map { it.asAnalysisReading() }
+        .filter { it.timestamp < current.timestamp }
+    val verdict = MilkAnalyzer.analyze(current, previous, ranges).verdict()
+    return if (verdict.level == VerdictLevel.GOOD) emptyList() else verdict.steps
 }

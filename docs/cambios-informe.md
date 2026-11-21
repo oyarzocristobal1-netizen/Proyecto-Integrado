@@ -25,7 +25,7 @@ las secciones correspondientes del informe.
 
 ## Pruebas (sección de validación)
 
-- 81 pruebas unitarias automáticas y 50 pruebas de reglas de Firestore (detalle en [pruebas.md](pruebas.md)).
+- 248 pruebas unitarias automáticas (verificadas con Gradle el 21-11-2026) y 89 pruebas de reglas de Firestore (verificadas con el emulador) (detalle en [pruebas.md](pruebas.md)).
 - Pruebas con hardware pendientes hasta contar con la caja de sensores.
 
 ## Pendiente o no implementado
@@ -46,3 +46,43 @@ las secciones correspondientes del informe.
 - **Resumen diario y comparativas**: botón *Compartir resumen* (texto listo para WhatsApp o correo, con aviso de mediciones SIMULADAS) y comparativa de 7 días por estanque o por lechero (% conformes y promedios).
 - **Alertas más ágiles**: filtros por severidad y por lote, selección múltiple con una nota común y *Ver medición* dentro de cada alerta.
 - Pruebas nuevas: `SaleReleaseTest` (8), `SupervisionTest` (10) y 4 de reglas (liberar lote para venta). Todos los datos del modo DEMO se siguen marcando como simulados.
+
+## Mejoras para el trabajador (lechero)
+
+- **Mi día** (pantalla Panel): cuántas mediciones hizo hoy, cuántas salieron conformes, cuál fue la última, qué lote le toca medir y cómo van las revisiones que pidió. Usa solo sus propias mediciones y marca lo simulado.
+- **Recordatorio de la próxima medición**: el análisis ya calcula a qué hora conviene volver a medir cada lote; con eso la app programa una notificación ("Hora de medir") que funciona aunque la app esté cerrada. Pide el permiso de notificaciones una vez (Android 13 o superior). Solo avisa de lotes de hoy que siguen abiertos y de las mediciones propias, y no muestra avisos si se cerró la sesión. Si el teléfono se reinicia, se reprograman al abrir la app. Los avisos son aproximados (alarmas sin permiso especial).
+- **Nota y "Pedir revisión"**: al registrar, el trabajador puede escribir una nota (≤200 caracteres) y pedir que el encargado revise la medición; si el análisis dice "No usar hasta verificar", la casilla viene marcada. El encargado ve las revisiones pedidas en Alertas (y un aviso en el panel de supervisión), las marca como hechas con una nota opcional, y el trabajador ve en su historial que fue revisada, por quién y qué se anotó.
+- Pruebas nuevas: `MyDayTest` (7) y 7 de reglas (nota y petición de revisión). Todo sigue marcado como simulado cuando viene del modo DEMO.
+
+## Identificación de datos simulados (limpieza visual)
+
+- Para no cargar la app con una marca en cada dato, se quitaron las insignias "SIMULADA" repetidas y los banners grandes de cada pantalla. En su lugar aparece un letrero pequeño **DEMO** junto al título, mientras haya datos simulados o el modo Simulación esté activo.
+- Los reportes (columna Origen y advertencia en el resumen) y el resumen diario compartido siguen indicando que los datos son simulados, porque salen de la app.
+- Lo simulado sigue guardándose con `origen = "simulado"` y el dispositivo `simulador`, y las reglas de Firestore impiden hacerlo pasar por dato del sensor.- En la pantalla Medir se ocultó el selector Simulación | Caja de sensores, porque la caja no estará disponible; queda la selección de la muestra simulada (Variada, Normal, Ácida, Mastitis, Diluida). La conexión por Bluetooth sigue implementada en el código y documentada en [protocolo-caja.md](protocolo-caja.md), pero no se puede activar desde la interfaz.- Los botones de filtro por origen (Todas / Sensor / Simuladas) del Panel y del Historial solo aparecen si hay mediciones del sensor y simuladas a la vez; con solo datos simulados quedan ocultos (y si quedaran activos, vuelven a "Todas").
+
+## Política de contraseñas
+
+- Las cuentas nuevas exigen contraseña de **10 caracteres o más, con mayúscula, minúscula y número**. La app lo valida al crear el usuario (con el motivo del rechazo) y la misma política se activa en Firebase Authentication para que el servidor también la exija, no solo la app. El inicio de sesión no aplica la regla de complejidad, para no dejar fuera a cuentas ya creadas.
+- Prueba nueva: `PasswordRulesTest` (4).
+- En "Mi día" la hora de la próxima medición dice "a las 16:03", "mañana a las 04:03" o "ayer a las 22:00" según el día, para que no haya confusión.
+
+## Avisos por rol (notificaciones con la app cerrada)
+
+- Además del recordatorio "Hora de medir", la app avisa según el rol: **encargado y administrador** reciben "Alertas por atender", "Revisión pedida" y "Medición atrasada" (lote de hoy, abierto, al que ya le tocaba medir); el **lechero** recibe "Revisión respondida" cuando el encargado revisa una medición suya.
+- Funciona con una tarea periódica del teléfono (WorkManager, cada 15 minutos como mínimo, solo con conexión) que consulta Firestore con las mismas reglas de seguridad de siempre: cada rol solo lee lo que ya puede leer. Muestra un aviso solo cuando hay algo **nuevo** y no repite lo ya avisado.
+- **No es en tiempo real**: puede demorar varios minutos porque Android agrupa las tareas para ahorrar batería. El aviso inmediato requiere un servidor (Cloud Functions + notificaciones push, plan de pago de Firebase) y queda como trabajo futuro.
+- El permiso de notificaciones se pide una vez al iniciar sesión (Android 13 o superior), para cualquier rol. Sin permiso no se pierde nada: los avisos pendientes llegan cuando se acepta.
+- Consumo de lecturas: cada revisión lee pocas decenas de documentos (alertas pendientes, revisiones pedidas y las mediciones y lotes de hoy). No cambia las reglas de seguridad.
+- Prueba nueva: `RoleNoticesTest` (10).
+
+## Pantalla de inicio de sesión
+
+- Se agregó, bajo el título, una frase que explica qué hace la app: "Mide la leche de cada estanque, la analiza, avisa si hay un problema y deja registrada la decisión de venta de cada lote."
+- **Nombre de la app: MilkQuality** (subtítulo "Calidad de la Leche"). Se cambió el nombre que se ve bajo el ícono, el título del inicio de sesión y del Panel y los títulos de la documentación. El identificador interno del proyecto (`com.example.myapplication`) no cambió, porque está atado a Firebase.
+- **Pantalla de bienvenida**: al abrir la app sin sesión aparece una portada con una imagen del campo, el nombre, una frase ("Monitorea y cuida la calidad de tu leche"), cuatro recuadros que resumen lo que hace (Mediciones, Análisis, Recomendaciones, Historial y reportes) y el botón "Ingresar". Al cerrar sesión se va directo al inicio de sesión. Es solo interfaz; no cambia ninguna regla ni la lógica.
+- La imagen de portada es una ilustración de apoyo, no una foto del Fundo San Carlos. [Indicar en el informe el origen de la imagen.]
+- **Selector de lote (pantalla Medir)**: "Nuevo lote" ya no repite los estanques que tienen lote hoy; esos se eligen en "Lotes de hoy". Si todos los estanques ya tienen lote, lo dice.  Además, el selector muestra una sola opción marcada a la vez: al elegir un estanque nuevo ya no queda marcado también el lote actual de la lista de arriba.
+- **Historial**: al elegir un filtro de resultado (Conforme, Precaución, Fuera de rango) u origen, el recuadro "Análisis histórico" se oculta para que la lista filtrada se vea de inmediato bajo los filtros; con "Todos" vuelve a aparecer.
+- **Historial: "Ver qué hacer"**: cada medición que no es de buena calidad (y no está anulada) muestra un botón plegado "Ver qué hacer (N)" con los mismos pasos recomendados de la pantalla Medir. Se calculan al momento con el análisis de siempre y las mediciones anteriores del lote, no se guardan en la base de datos, y sirven para todos los roles (también "Mis mediciones" del lechero).
+- **Liberar para venta exige atender lo pendiente**: un lote con alertas o revisiones pedidas sin atender no se puede liberar como "apto para venta". El diálogo lo explica ("Antes de liberar como apto, atiende en Alertas lo pendiente de este lote…") y el botón queda desactivado hasta que se atiendan. Declarar un lote "no apto" nunca se bloquea, porque es la decisión prudente. Si el análisis pide revisar o no usar, además sigue siendo obligatoria la nota. Esta regla la aplica la app (la base de datos no puede contar las alertas de un lote); está anotada como limitación de confianza en el cliente.
+- Pruebas nuevas: 5 en `SaleReleaseTest` (total 248, verificado con Gradle).

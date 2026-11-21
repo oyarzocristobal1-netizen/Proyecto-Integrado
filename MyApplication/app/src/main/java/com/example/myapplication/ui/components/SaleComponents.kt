@@ -17,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import com.example.myapplication.data.Lot
 import com.example.myapplication.model.SaleDecision
 import com.example.myapplication.model.SaleRelease
@@ -58,7 +59,10 @@ fun SaleDialog(
     simulatedData: Boolean,
     saving: Boolean,
     onConfirm: (decision: SaleDecision?, note: String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** Alertas y revisiones pedidas sin atender de este lote: mientras queden, no se puede liberar como apto. */
+    pendingAlerts: Int = 0,
+    pendingReviews: Int = 0
 ) {
     val verdict = analysis?.analysis?.verdict()
     val level = verdict?.level
@@ -67,7 +71,8 @@ fun SaleDialog(
     var decision by rememberSaveable(lot.id) { mutableStateOf(lot.sale ?: suggestion) }
     var note by rememberSaveable(lot.id) { mutableStateOf(lot.saleNote) }
     val required = decision?.let { SaleRelease.noteRequiredReason(it, level, overdue) }
-    val error = SaleRelease.validate(decision, level, note, measurementCount, overdue)
+    val blockReason = if (decision == SaleDecision.APTO) SaleRelease.approvalBlockReason(pendingAlerts, pendingReviews) else null
+    val error = SaleRelease.validate(decision, level, note, measurementCount, overdue, pendingAlerts, pendingReviews)
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
@@ -107,6 +112,14 @@ fun SaleDialog(
                             label = { Text(option.label) }
                         )
                     }
+                }
+                if (blockReason != null) {
+                    Text(
+                        text = blockReason,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
                 OutlinedTextField(
                     value = note,

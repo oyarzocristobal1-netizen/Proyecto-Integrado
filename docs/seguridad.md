@@ -66,6 +66,7 @@ perfil, no editable) y cuándo (hora del servidor). **Eliminar de verdad** es el
 | Anular medición | Encargado y admin | `anulada`, `motivoAnulacion` (3–200), `anuladaPor`, `anuladaEn` | Cambiar los valores medidos; anular sin motivo; desanular; anular dos veces |
 | Atender alerta con nota | Encargado y admin | `atendida`, `nota` (≤300, opcional), `atendidaPor`, `atendidaEn` | Reabrir la alerta; cambiar su valor o mensaje; después solo se edita la nota |
 | Liberar lote para venta | Encargado y admin | `venta` (`apto` / `no_apto`), `ventaNota` (≤200, opcional), `ventaPor`, `ventaEn` | Que lo haga un lechero; firmar con otro nombre; hora falsa; valor distinto de apto/no apto; nota de más de 200 caracteres. La app exige nota al liberar contra lo que sugiere el análisis |
+| Nota y revisión pedida | Cualquier trabajador al registrar; marca la revisión el encargado y el admin | `nota` (≤200, opcional), `revision` (solo `true`); al revisar: `revisionAtendida`, `revisionPor`, `revisionEn`, `revisionNota` (≤200) | Crear la medición con la revisión ya hecha; que el lechero la marque; firmar con otro nombre; hora falsa; revisar dos veces o donde no se pidió; cambiar los valores medidos |
 | Dispositivos | Solo admin | `nombre`, `ubicacion`, `estado` | Borrar sin ser administrador; campos extra |
 | Calibraciones | Solo admin | `idDispositivo`, `fecha`, `realizadaPor`, `parametro`, `nota` | Calibrar un dispositivo inexistente; fecha del teléfono; firmar con otro nombre; reescribirla (solo la nota) |
 
@@ -97,10 +98,10 @@ Se necesitan 2 teléfonos o 2 cuentas (una de administrador y una de lechero).
 | SM-03 | El administrador desactiva a un lechero con la sesión abierta; el lechero intenta registrar | Se rechaza con un mensaje claro, no se guarda y no puede volver a ingresar |
 | SM-04 | El administrador cambia el rol de un lechero a encargado | Los permisos del servidor cambian de inmediato; la app los refleja al reingresar |
 | SM-05 | Crear una cuenta y no verificar el correo; intentar ingresar | No entra y la app avisa que falta verificar |
-| SM-06 | Crear un usuario con contraseña de menos de 10 caracteres | Se rechaza |
+| SM-06 | Crear un usuario con una contraseña corta (menos de 10) y otra sin mayúscula o sin número | Se rechaza con el motivo (la app avisa antes de enviar; el servidor también la rechaza con la política activada) |
 | SM-07 | 6 contraseñas incorrectas seguidas | Mensaje genérico; Firebase puede bloquear temporalmente |
 | SM-08 | Ingresar con correo inexistente y con correo real y contraseña mala | Mismo mensaje en ambos casos |
-| SM-09 | Recorrer todas las pantallas buscando cómo borrar algo | No existe ninguna opción de eliminar |
+| SM-09 | Como lechero y como encargado, recorrer todas las pantallas buscando cómo borrar algo | No existe ninguna opción de eliminar (solo anular, cerrar o desactivar). Solo el administrador tiene "Eliminar", con confirmación y registro en la bitácora |
 | SM-10 | Desactivar cuenta, marcar alerta atendida y cerrar sesión con pendientes | Cada acción pide confirmación |
 | SM-11 | Tocar Registrar dos veces seguidas | Una sola medición ("Esta lectura ya fue registrada") |
 | SM-12 | Crear el lote `=1+1`, registrar una medición, exportar CSV y abrir en Excel | El lote aparece como texto `'=1+1`, no calcula |
@@ -114,6 +115,6 @@ Se necesitan 2 teléfonos o 2 cuentas (una de administrador y una de lechero).
 | Un lechero con cuenta válida puede enviar muchas escrituras (consumo del plan gratuito) | Las reglas no limitan la frecuencia | Presupuesto y alertas de cuota en Firebase; desactivar la cuenta |
 | Borrado desde la consola de Firebase por alguien con acceso al proyecto | Las reglas no aplican a la consola | Pocos propietarios del proyecto y copias de seguridad programadas de Firestore |
 | Al cerrar sesión no se limpia la caché local de Firestore | La app no llama a `clearPersistence` | Las consultas de la app están filtradas por rol; considerar limpiar la caché al cerrar sesión |
-| Política de contraseñas en el servidor | La regla de 10 caracteres está en la app; el servidor de Firebase acepta 6 | Activar la política de contraseñas en Authentication; sin perfil creado por el administrador la cuenta no accede a nada |
+| Política de contraseñas en el servidor | La política (10 caracteres, mayúscula, minúscula y número) se activa en la consola de Firebase y la app la valida igual al crear cuentas; si no se activa en la consola, el servidor acepta 6 | Mantener activada la política en Authentication (ver [configurar-firebase.md](configurar-firebase.md)); sin perfil creado por el administrador la cuenta no accede a nada |
 | Un administrador puede eliminar registros (incluido el historial de un lote) | Decisión del equipo para poder corregir errores; las reglas no obligan a anotar la bitácora (la app lo hace siempre, pero una escritura hecha desde otra herramienta podría omitirla) | Pocos administradores; copias de seguridad programadas de Firestore; revisar la bitácora |
 | El enlace Bluetooth no autentica a la caja | Solo emparejamiento | Revisar al definir el hardware definitivo |

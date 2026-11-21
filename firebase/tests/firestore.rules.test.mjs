@@ -617,6 +617,53 @@ describe('anular mediciones (baja logica)', () => {
   });
 });
 
+describe('nota y peticion de revision en la medicion', () => {
+  const revisar = (nombre = 'encargado', cambios = {}) => ({
+    revisionAtendida: true, revisionNota: 'Se enfrió y se volvió a medir', revisionPor: nombre, revisionEn: serverTimestamp(), ...cambios,
+  });
+  const pedida = async (id) => {
+    await assertSucceeds(setDoc(doc(como('lechero'), 'mediciones', id), medicion({ nota: 'Vaca con mastitis', revision: true })));
+  };
+
+  test('el trabajador guarda una nota y pide revision al registrar', async () => {
+    await pedida('con-revision');
+    await assertSucceeds(setDoc(doc(como('lechero'), 'mediciones', 'solo-nota'), medicion({ nota: 'Se limpió el estanque' })));
+  });
+  test('la nota no puede superar 200 caracteres ni ser de otro tipo', async () => {
+    await assertFails(setDoc(doc(como('lechero'), 'mediciones', 'larga'), medicion({ nota: 'x'.repeat(201) })));
+    await assertFails(setDoc(doc(como('lechero'), 'mediciones', 'numero'), medicion({ nota: 12 })));
+  });
+  test('no se crea una medicion con la revision ya hecha ni con otros campos nuevos', async () => {
+    await assertFails(setDoc(doc(como('lechero'), 'mediciones', 'x1'), medicion({ revision: false })));
+    await assertFails(setDoc(doc(como('lechero'), 'mediciones', 'x2'), medicion({ revision: true, revisionAtendida: true })));
+    await assertFails(setDoc(doc(como('lechero'), 'mediciones', 'x3'), medicion({ comentarioExtra: 'hola' })));
+  });
+  test('encargado y administrador marcan la revision con su nombre y la hora del servidor', async () => {
+    await pedida('r1');
+    await assertSucceeds(updateDoc(doc(como('encargado'), 'mediciones', 'r1'), revisar()));
+    await pedida('r2');
+    await assertSucceeds(updateDoc(doc(como('admin'), 'mediciones', 'r2'), revisar('admin', { revisionNota: deleteField() })));
+  });
+  test('el lechero no marca revisiones, ni las suyas', async () => {
+    await pedida('r3');
+    await assertFails(updateDoc(doc(como('lechero'), 'mediciones', 'r3'), revisar('lechero')));
+  });
+  test('exige firmar con su nombre, hora del servidor y no se hace dos veces', async () => {
+    await pedida('r4');
+    const db = como('encargado');
+    await assertFails(updateDoc(doc(db, 'mediciones', 'r4'), revisar('admin')));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'r4'), revisar('encargado', { revisionEn: Timestamp.now() })));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'r4'), revisar('encargado', { revisionNota: 'x'.repeat(201) })));
+    await assertSucceeds(updateDoc(doc(db, 'mediciones', 'r4'), revisar()));
+    await assertFails(updateDoc(doc(db, 'mediciones', 'r4'), revisar('encargado', { revisionNota: 'otra' })));
+  });
+  test('solo se revisan las mediciones donde se pidio revision y no se toca nada mas', async () => {
+    await assertFails(updateDoc(doc(como('encargado'), 'mediciones', 'existente'), revisar()));
+    await pedida('r5');
+    await assertFails(updateDoc(doc(como('encargado'), 'mediciones', 'r5'), revisar('encargado', { 'sensores.ph': 6.5 })));
+  });
+});
+
 describe('alertas atendidas con nota', () => {
   const atender = (nombre = 'encargado', cambios = {}) => ({
     atendida: true, nota: 'Se revisó el estanque', atendidaPor: nombre, atendidaEn: serverTimestamp(), ...cambios,

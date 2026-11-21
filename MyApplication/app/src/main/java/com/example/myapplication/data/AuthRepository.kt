@@ -80,6 +80,16 @@ class AuthRepository(
         )
     }
 
+    /**
+     * Rol de una cuenta activa, o null si no tiene perfil, rol valido o esta desactivada.
+     * Es una lectura silenciosa (no cierra la sesion): la usan los avisos en segundo plano.
+     */
+    suspend fun activeRoleOf(uid: String): Role? {
+        val doc = db.collection("usuarios").document(uid).get().await()
+        if (!doc.exists() || doc.getBoolean("activo") != true) return null
+        return Role.fromId(doc.getString("rol"))
+    }
+
     suspend fun sendPasswordReset(email: String) {
         auth.sendPasswordResetEmail(email).await()
     }
