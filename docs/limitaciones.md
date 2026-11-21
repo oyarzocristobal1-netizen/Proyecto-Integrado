@@ -16,7 +16,7 @@ Texto base para la sección "Limitaciones y trabajo futuro" del informe. Cada li
 |---|---|---|
 | La caché local de Firestore no se borra al cerrar sesión. | En un teléfono compartido, datos ya descargados podrían quedar en el dispositivo. | Decisión del equipo de no cambiarlo por ahora. Se recomienda un teléfono por persona y bloqueo de pantalla. |
 | Sin App Check ni límite de peticiones. | Un cliente que no sea la app podría intentar muchas llamadas. | Las reglas exigen sesión iniciada, usuario activo y rol, y validan forma y rangos de cada documento. |
-| Parte de la lógica confía en el cliente. | El estado del lote y la generación de alertas los calcula la app. Las reglas validan permisos y forma, pero no recalculan el análisis. | Documentado en `docs/seguridad.md`. Solución definitiva: mover esos cálculos a Cloud Functions. |
+| Parte de la lógica confía en el cliente. | El estado del lote, la generación de alertas y la regla "no liberar como apto con alertas o revisiones sin atender" las aplica la app. Las reglas validan permisos y forma, pero no recalculan el análisis ni cuentan alertas. | Documentado en `docs/seguridad.md`. Solución definitiva: mover esos cálculos a Cloud Functions. |
 | Sin respaldos programados de Firestore. | No se configuró copia periódica. | Borrado lógico por defecto, borrado real solo del administrador y registro en `eliminaciones`. |
 | Sin pruebas de penetración externas. | Fuera del alcance del curso. | 89 pruebas de reglas con el emulador de Firebase, que cubren permisos por rol y casos de rechazo. |
 | Contraseñas sin segundo factor. | Solo correo y contraseña. | Política de 10 caracteres con mayúscula, minúscula y número, exigida por la app y por el servidor. |

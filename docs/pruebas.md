@@ -5,7 +5,7 @@ hardware está listado al final como pendiente.
 
 ## 1. Cómo ejecutarlas
 
-**Pruebas unitarias (243)** — en la carpeta `MyApplication`:
+**Pruebas unitarias (248)** — en la carpeta `MyApplication`:
 
 ```
 .\gradlew test          (Windows)
@@ -48,12 +48,12 @@ npm test
 | `model/analysis/ProgressAnalyzerTest` | 10 | Seguimiento: mejoró, empeoró o sin cambios respecto de la muestra anterior del lote |
 | `model/analysis/FindingTextTest` | 4 | Texto de estado de cada recuadro ("Dentro del rango", "Leve · alta", etc.) y que cabe en el recuadro |
 | `sensor/DemoAnalysisScenariosTest` | 2 | Los 7 escenarios DEMO nuevos producen el análisis esperado con 300 lecturas con ruido cada uno |
-| `model/SaleReleaseTest` | 8 | Liberar lote para venta: sugerencia según el veredicto, nota obligatoria al liberar contra el análisis o con medición atrasada, sin mediciones no se decide, límite de la nota |
+| `model/SaleReleaseTest` | 13 | Liberar lote para venta: sugerencia según el veredicto, nota obligatoria al liberar contra el análisis o con medición atrasada, sin mediciones no se decide, límite de la nota, no se libera como apto con alertas o revisiones pedidas sin atender (declarar no apto nunca se bloquea) |
 | `model/SupervisionTest` | 10 | Supervisión del encargado: agrupar por lechero o estanque, % conforme, promedios, conteo de simuladas, mediciones desde el inicio del día, texto del resumen diario (con aviso de SIMULADAS) |
 | `model/PasswordRulesTest` | 4 | Política de contraseñas para cuentas nuevas: 10 caracteres como mínimo y con mayúscula, minúscula y número; el texto de ayuda coincide |
 | `model/MyDayTest` | 8 | "Mi día" del trabajador (mediciones, % conformes, última, simuladas), inicio del día, recordatorios de la próxima medición (atrasados, próximos, lotes cerrados o de otro día, horizonte de 12 h), hora dicha con naturalidad ("a las…", "mañana a las…", "ayer a las…") y límite de la nota de revisión |
 | `model/RoleNoticesTest` | 10 | Avisos por rol: qué recibe cada rol, no repetir lo ya avisado, avisar solo de lo nuevo con el total, olvidar lo resuelto, el lechero no recibe avisos del encargado y al revés, un aviso por tipo, lote atrasado que vuelve a atrasarse |
-| **Total** | **243** | Verificados con Gradle (`.\gradlew test --rerun-tasks`, conteo de los informes XML) el 21-11-2026: 243 correctas, 0 fallas |
+| **Total** | **248** | 243 verificados con Gradle (`.\gradlew test --rerun-tasks`, conteo de los informes XML) el 21-11-2026: 243 correctas, 0 fallas. Las 5 pruebas nuevas de `SaleReleaseTest` pasan en el entorno de desarrollo y están por confirmar con Gradle |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 

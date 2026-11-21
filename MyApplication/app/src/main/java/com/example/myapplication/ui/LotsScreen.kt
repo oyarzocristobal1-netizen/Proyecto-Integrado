@@ -225,6 +225,8 @@ fun LotsScreen(
             measurementCount = analysis?.readings ?: 0,
             simulatedData = lot.id in simulatedLotIds,
             saving = state.saving,
+            pendingAlerts = state.pendingAlerts.count { it.lotId == lot.id },
+            pendingReviews = state.pendingReviews.count { it.lotId == lot.id },
             onConfirm = { decision, note ->
                 viewModel.setLotSale(
                     lot = lot,

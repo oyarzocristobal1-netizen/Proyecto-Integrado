@@ -4,6 +4,7 @@ import com.example.myapplication.model.analysis.VerdictLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SaleReleaseTest {
@@ -60,5 +61,40 @@ class SaleReleaseTest {
         assertEquals(setOf("apto", "no_apto"), SaleDecision.entries.map { it.id }.toSet())
         assertEquals(SaleDecision.NO_APTO, SaleDecision.fromId("no_apto"))
         assertNull(SaleDecision.fromId("otro"))
+    }
+
+    @Test
+    fun noSeLiberaComoAptoConAlertasOPendientesSinAtender() {
+        val conAlertas = SaleRelease.validate(SaleDecision.APTO, VerdictLevel.GOOD, "", 3, false, pendingAlerts = 4)
+        assertNotNull(conAlertas)
+        assertTrue(conAlertas!!.contains("4 alertas pendientes"))
+        val conRevision = SaleRelease.validate(SaleDecision.APTO, VerdictLevel.GOOD, "", 3, false, pendingReviews = 1)
+        assertNotNull(conRevision)
+        assertTrue(conRevision!!.contains("1 revisión pedida"))
+    }
+
+    @Test
+    fun elMensajeNombraAlertasYRevisionesJuntas() {
+        val msg = SaleRelease.approvalBlockReason(pendingAlerts = 1, pendingReviews = 2)!!
+        assertTrue(msg.contains("1 alerta pendiente y 2 revisiones pedidas"))
+    }
+
+    @Test
+    fun sinPendientesNoHayImpedimento() {
+        assertNull(SaleRelease.approvalBlockReason(0, 0))
+        assertNull(SaleRelease.validate(SaleDecision.APTO, VerdictLevel.GOOD, "", 3, false, 0, 0))
+    }
+
+    @Test
+    fun declararNoAptoNuncaSeBloqueaPorPendientes() {
+        assertNull(
+            SaleRelease.validate(SaleDecision.NO_APTO, VerdictLevel.STOP, "", 3, false, pendingAlerts = 5, pendingReviews = 2)
+        )
+    }
+
+    @Test
+    fun unaVezAtendidoLoPendienteSigueExigiendoLaNotaSiElAnalisisPideRevisar() {
+        assertNotNull(SaleRelease.validate(SaleDecision.APTO, VerdictLevel.REVIEW, "", 3, false, 0, 0))
+        assertNull(SaleRelease.validate(SaleDecision.APTO, VerdictLevel.REVIEW, "Contraprueba conforme", 3, false, 0, 0))
     }
 }

@@ -543,7 +543,10 @@ class RecordsViewModel(
             showMessage("Tu rol no permite liberar lotes para venta.")
             return
         }
-        SaleRelease.validate(decision, verdict, note, measurementCount, overdue)?.let {
+        // Alertas y revisiones sin atender del lote: no se libera como apto hasta atenderlas.
+        val pendingAlerts = _state.value.pendingAlerts.count { it.lotId == lot.id }
+        val pendingReviews = _state.value.pendingReviews.count { it.lotId == lot.id }
+        SaleRelease.validate(decision, verdict, note, measurementCount, overdue, pendingAlerts, pendingReviews)?.let {
             showMessage(it)
             return
         }
