@@ -37,7 +37,11 @@ import com.example.myapplication.ui.MeasurementReminderEffect
 import com.example.myapplication.ui.RoleNoticesEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -55,6 +59,7 @@ import com.example.myapplication.ui.DevicesScreen
 import com.example.myapplication.ui.DashboardScreen
 import com.example.myapplication.ui.HistoryScreen
 import com.example.myapplication.ui.LoginScreen
+import com.example.myapplication.ui.WelcomeScreen
 import com.example.myapplication.ui.LotsScreen
 import com.example.myapplication.ui.MeasureScreen
 import com.example.myapplication.ui.MoreScreen
@@ -110,19 +115,30 @@ fun AppRoot(
     userManagementViewModel: UserManagementViewModel
 ) {
     val authState by authViewModel.state.collectAsStateWithLifecycle()
+    // La bienvenida se ve al abrir la app sin sesion; despues de pasar por ella (o de entrar y salir) se va directo al login.
+    var showWelcome by rememberSaveable { mutableStateOf(true) }
     when (val state = authState) {
         is AuthUiState.Checking -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
 
-        is AuthUiState.LoggedOut -> LoginScreen(
-            state = state,
-            onLogin = authViewModel::login,
-            onResetPassword = authViewModel::resetPassword
-        )
+        is AuthUiState.LoggedOut -> {
+            if (showWelcome) {
+                WelcomeScreen(onContinue = { showWelcome = false })
+            } else {
+                BackHandler { showWelcome = true }
+                LoginScreen(
+                    state = state,
+                    onLogin = authViewModel::login,
+                    onResetPassword = authViewModel::resetPassword
+                )
+            }
+        }
 
         is AuthUiState.LoggedIn -> {
             val session = state.session
+            // Con la sesion abierta no hace falta volver a ver la bienvenida al cerrarla.
+            LaunchedEffect(Unit) { showWelcome = false }
             LaunchedEffect(session.uid, session.role) { recordsViewModel.start(session) }
             // Cada sesion tiene su propia navegacion (al cambiar de usuario se parte desde el Panel).
             key(session.uid) {

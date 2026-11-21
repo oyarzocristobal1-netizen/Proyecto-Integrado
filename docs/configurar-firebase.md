@@ -1,4 +1,4 @@
-# Configurar Firebase para la app Calidad de Leche
+# Configurar Firebase para la app MilkQuality
 
 Proyecto de Firebase: `medidor-calidad-de-la-leche`. Paquete de la app: `com.example.myapplication`.
 

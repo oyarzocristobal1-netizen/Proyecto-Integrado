@@ -1,4 +1,4 @@
-# Arquitectura de la app Calidad de Leche
+# Arquitectura de la app MilkQuality
 
 App Android (Kotlin + Jetpack Compose + Material 3) que mide la calidad de la leche del Fundo San Carlos
 con una caja de sensores (temperatura, pH, conductividad y turbidez) y guarda los registros en Cloud Firestore.

@@ -99,7 +99,7 @@ fun DashboardScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(title = { ScreenTitle("Calidad de Leche", "Hola, ${session.name.substringBefore(' ')} · ${session.role.label}") })
+            TopAppBar(title = { ScreenTitle("MilkQuality", "Hola, ${session.name.substringBefore(' ')} · ${session.role.label}") })
         }
     ) { innerPadding ->
         LazyColumn(

@@ -1,4 +1,4 @@
-# Calidad de Leche · Fundo San Carlos
+# MilkQuality (Calidad de la Leche) · Fundo San Carlos
 
 Proyecto Integrado TIHI43 (INACAP). App Android para medir la calidad de la leche (temperatura, pH,
 conductividad y turbidez) con una caja de sensores, evaluar cada muestra con un semáforo, generar alertas

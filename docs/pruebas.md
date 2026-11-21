@@ -1,4 +1,4 @@
-# Pruebas de la app Calidad de Leche
+# Pruebas de la app MilkQuality
 
 Todo lo que se puede validar **sin la caja de sensores** tiene pruebas automáticas. Lo que depende del
 hardware está listado al final como pendiente.
