@@ -150,6 +150,13 @@ fun SupervisionPanel(
             }
         }
 
+        if (state.pendingReviews.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusPill("${state.pendingReviews.size} revisión(es) pedida(s)", status.warning)
+                TextButton(onClick = onOpenAlerts) { Text("Ver en Alertas") }
+            }
+        }
+
         if (todayLots.isEmpty()) {
             Text(
                 "Hoy todavía no hay lotes. Aparecerán cuando alguien registre la primera medición del día.",

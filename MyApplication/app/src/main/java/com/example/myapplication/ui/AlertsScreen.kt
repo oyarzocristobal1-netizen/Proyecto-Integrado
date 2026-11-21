@@ -47,11 +47,13 @@ import com.example.myapplication.data.MilkAlert
 import com.example.myapplication.data.SavedMeasurement
 import com.example.myapplication.model.AlertSeverity
 import com.example.myapplication.model.CrudRules
+import com.example.myapplication.model.ReviewRules
 import com.example.myapplication.model.UserSession
 import com.example.myapplication.ui.components.ConfirmDialog
 import com.example.myapplication.ui.components.TextInputDialog
 import com.example.myapplication.ui.components.EmptyState
 import com.example.myapplication.ui.components.ScreenTitle
+import com.example.myapplication.ui.components.SavedMeasurementRow
 import com.example.myapplication.ui.components.SimulatedBadge
 import com.example.myapplication.ui.components.displayName
 import com.example.myapplication.ui.theme.AppTheme
@@ -74,6 +76,7 @@ fun AlertsScreen(
     var editingNote by remember { mutableStateOf<MilkAlert?>(null) }
     var deleting by remember { mutableStateOf<MilkAlert?>(null) }
     var bulkAttending by remember { mutableStateOf(false) }
+    var reviewing by remember { mutableStateOf<SavedMeasurement?>(null) }
     var expandedId by remember { mutableStateOf<String?>(null) }
     var lotMenuOpen by remember { mutableStateOf(false) }
     val visible = state.filteredAlerts
@@ -147,6 +150,25 @@ fun AlertsScreen(
                                     viewModel.setAlertsLotFilter(lot.id)
                                     lotMenuOpen = false
                                 }
+                            )
+                        }
+                    }
+                }
+            }
+            if (session.role.canAttendAlerts && state.pendingReviews.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "Revisiones pedidas por los trabajadores (${state.pendingReviews.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        state.pendingReviews.forEach { m ->
+                            SavedMeasurementRow(
+                                measurement = m,
+                                lotName = state.lotName(m.lotId),
+                                showMilker = true,
+                                onReview = { reviewing = m }
                             )
                         }
                     }
@@ -259,6 +281,25 @@ fun AlertsScreen(
             stateKey = alert.id,
             onConfirm = { note -> viewModel.markAlertAttended(alert, note) { attending = null } },
             onDismiss = { attending = null }
+        )
+    }
+
+    reviewing?.let { m ->
+        TextInputDialog(
+            title = "Marcar revisión como hecha",
+            description = "Medición de ${m.milkerName.ifBlank { "un trabajador" }} en ${state.lotName(m.lotId)}." +
+                (if (m.note.isNotBlank()) "\nNota del trabajador: ${m.note}" else "") +
+                "\n\nConfirma que revisaste esta medición. Puedes anotar qué hiciste (opcional).",
+            label = "Nota (opcional)",
+            placeholder = "Ej.: se revisó la leche y se separó el lote",
+            initial = "",
+            maxLength = ReviewRules.NOTE_MAX,
+            confirmLabel = "Marcar revisada",
+            saving = state.saving,
+            validate = ReviewRules::validateNote,
+            stateKey = m.id + "-revision",
+            onConfirm = { note -> viewModel.resolveReview(m, note) { reviewing = null } },
+            onDismiss = { reviewing = null }
         )
     }
 

@@ -220,6 +220,11 @@ fun DashboardScreen(
                     }
                 }
 
+                // "Mi dia" (trabajador): sus propias mediciones, lo que le toca medir y sus revisiones pedidas.
+                if (!session.role.canViewAllHistory) item {
+                    MyDayCard(state = state, session = session, now = now)
+                }
+
                 // Supervision (encargado y administrador): estado por lote, lecheros, comparativas y resumen.
                 if (session.role.canViewAllHistory) item {
                     SupervisionPanel(state = state, session = session, now = now, onOpenAlerts = onOpenAlerts)

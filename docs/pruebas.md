@@ -5,7 +5,7 @@ hardware está listado al final como pendiente.
 
 ## 1. Cómo ejecutarlas
 
-**Pruebas unitarias (220)** — en la carpeta `MyApplication`:
+**Pruebas unitarias (227)** — en la carpeta `MyApplication`:
 
 ```
 .\gradlew test          (Windows)
@@ -15,7 +15,7 @@ hardware está listado al final como pendiente.
 El informe queda en `MyApplication/app/build/reports/tests/testDebugUnitTest/index.html`.
 En Android Studio también se pueden ejecutar con clic derecho sobre `app/src/test` → *Run Tests*.
 
-**Pruebas de las reglas de Firestore (81: 50 anteriores + 27 del CRUD ampliado y las eliminaciones + 4 de liberar lotes para venta)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
+**Pruebas de las reglas de Firestore (88: 50 anteriores + 27 del CRUD ampliado y las eliminaciones + 4 de liberar lotes para venta + 7 de nota y revisión)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
 no tocan la base real):
 
 ```
@@ -50,7 +50,8 @@ npm test
 | `sensor/DemoAnalysisScenariosTest` | 2 | Los 7 escenarios DEMO nuevos producen el análisis esperado con 300 lecturas con ruido cada uno |
 | `model/SaleReleaseTest` | 8 | Liberar lote para venta: sugerencia según el veredicto, nota obligatoria al liberar contra el análisis o con medición atrasada, sin mediciones no se decide, límite de la nota |
 | `model/SupervisionTest` | 10 | Supervisión del encargado: agrupar por lechero o estanque, % conforme, promedios, conteo de simuladas, mediciones desde el inicio del día, texto del resumen diario (con aviso de SIMULADAS) |
-| **Total** | **220** | 179 verificados con Gradle el 20-11-2026 + 7 (textos de estado y aviso flotante) + 9 (CrudRulesTest) + 7 (DeletionRulesTest) + 8 (SaleReleaseTest) + 10 (SupervisionTest), por confirmar con `.\gradlew test --rerun-tasks` |
+| `model/MyDayTest` | 7 | "Mi día" del trabajador (mediciones, % conformes, última, simuladas), inicio del día, recordatorios de la próxima medición (atrasados, próximos, lotes cerrados o de otro día, horizonte de 12 h) y límite de la nota de revisión |
+| **Total** | **227** | 179 verificados con Gradle el 20-11-2026 + 7 (textos de estado y aviso flotante) + 9 (CrudRulesTest) + 7 (DeletionRulesTest) + 8 (SaleReleaseTest) + 10 (SupervisionTest) + 7 (MyDayTest), por confirmar con `.\gradlew test --rerun-tasks` |
 
 ## 3. Pruebas de las reglas de Firestore (`firebase/tests/firestore.rules.test.mjs`)
 
@@ -71,9 +72,10 @@ npm test
 | Cierre de lotes | 5 | Cerrar y reabrir deja quién y cuándo; un lote cerrado no admite mediciones; el lechero no puede cerrar |
 | Anular mediciones (baja lógica) | 6 | Solo encargado/admin; exige motivo (3–200), nombre propio y hora del servidor; no se tocan los valores medidos ni se desanula |
 | Liberar lote para venta | 4 | Solo encargado/admin deciden apto o no apto; exige quién y hora del servidor; nota ≤200; el lechero no puede; se puede cambiar la decisión |
+| Nota y petición de revisión | 7 | El trabajador guarda nota (≤200) y pide revisión al registrar; no puede crear la revisión ya hecha ni campos extra; solo encargado/admin la marcan, una vez, con su nombre y la hora del servidor; solo donde se pidió y sin tocar otros campos |
 | Alertas atendidas con nota | 6 | Atender con nota opcional, quién y cuándo; editar solo la nota; el formato anterior sigue valiendo |
 | Dispositivos y calibraciones (admin) | 4 | Solo el admin; calibración con dispositivo existente, fecha del servidor y responsable; solo se corrige la nota |
-| **Total** | **81** | 29 nuevas aún sin ejecutar en el emulador (no se pudo descargar en el entorno de desarrollo): `npm test` en `firebase/tests` |
+| **Total** | **88** | 36 nuevas aún sin ejecutar en el emulador (no se pudo descargar en el entorno de desarrollo): `npm test` en `firebase/tests` |
 
 ## 4. Resultados obtenidos
 

@@ -46,3 +46,10 @@ las secciones correspondientes del informe.
 - **Resumen diario y comparativas**: botón *Compartir resumen* (texto listo para WhatsApp o correo, con aviso de mediciones SIMULADAS) y comparativa de 7 días por estanque o por lechero (% conformes y promedios).
 - **Alertas más ágiles**: filtros por severidad y por lote, selección múltiple con una nota común y *Ver medición* dentro de cada alerta.
 - Pruebas nuevas: `SaleReleaseTest` (8), `SupervisionTest` (10) y 4 de reglas (liberar lote para venta). Todos los datos del modo DEMO se siguen marcando como simulados.
+
+## Mejoras para el trabajador (lechero)
+
+- **Mi día** (pantalla Panel): cuántas mediciones hizo hoy, cuántas salieron conformes, cuál fue la última, qué lote le toca medir y cómo van las revisiones que pidió. Usa solo sus propias mediciones y marca lo simulado.
+- **Recordatorio de la próxima medición**: el análisis ya calcula a qué hora conviene volver a medir cada lote; con eso la app programa una notificación ("Hora de medir") que funciona aunque la app esté cerrada. Pide el permiso de notificaciones una vez (Android 13 o superior). Solo avisa de lotes de hoy que siguen abiertos y de las mediciones propias, y no muestra avisos si se cerró la sesión. Si el teléfono se reinicia, se reprograman al abrir la app. Los avisos son aproximados (alarmas sin permiso especial).
+- **Nota y "Pedir revisión"**: al registrar, el trabajador puede escribir una nota (≤200 caracteres) y pedir que el encargado revise la medición; si el análisis dice "No usar hasta verificar", la casilla viene marcada. El encargado ve las revisiones pedidas en Alertas (y un aviso en el panel de supervisión), las marca como hechas con una nota opcional, y el trabajador ve en su historial que fue revisada, por quién y qué se anotó.
+- Pruebas nuevas: `MyDayTest` (7) y 7 de reglas (nota y petición de revisión). Todo sigue marcado como simulado cuando viene del modo DEMO.

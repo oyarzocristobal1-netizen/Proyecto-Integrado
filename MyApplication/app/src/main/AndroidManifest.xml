@@ -14,6 +14,9 @@
          No se escanea ni se usa ubicacion: solo dispositivos ya emparejados. -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <!-- Avisos de "toca medir" (Android 13 o superior: se pide al usuario) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 
     <application
@@ -38,6 +41,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Recibe la alarma del recordatorio de la proxima medicion -->
+        <receiver
+            android:name=".reminders.ReminderReceiver"
+            android:exported="false" />
 
         <!-- Permite compartir los reportes generados (PDF, Excel, Word y CSV) -->
         <provider

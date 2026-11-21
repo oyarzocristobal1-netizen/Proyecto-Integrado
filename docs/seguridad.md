@@ -66,6 +66,7 @@ perfil, no editable) y cuándo (hora del servidor). **Eliminar de verdad** es el
 | Anular medición | Encargado y admin | `anulada`, `motivoAnulacion` (3–200), `anuladaPor`, `anuladaEn` | Cambiar los valores medidos; anular sin motivo; desanular; anular dos veces |
 | Atender alerta con nota | Encargado y admin | `atendida`, `nota` (≤300, opcional), `atendidaPor`, `atendidaEn` | Reabrir la alerta; cambiar su valor o mensaje; después solo se edita la nota |
 | Liberar lote para venta | Encargado y admin | `venta` (`apto` / `no_apto`), `ventaNota` (≤200, opcional), `ventaPor`, `ventaEn` | Que lo haga un lechero; firmar con otro nombre; hora falsa; valor distinto de apto/no apto; nota de más de 200 caracteres. La app exige nota al liberar contra lo que sugiere el análisis |
+| Nota y revisión pedida | Cualquier trabajador al registrar; marca la revisión el encargado y el admin | `nota` (≤200, opcional), `revision` (solo `true`); al revisar: `revisionAtendida`, `revisionPor`, `revisionEn`, `revisionNota` (≤200) | Crear la medición con la revisión ya hecha; que el lechero la marque; firmar con otro nombre; hora falsa; revisar dos veces o donde no se pidió; cambiar los valores medidos |
 | Dispositivos | Solo admin | `nombre`, `ubicacion`, `estado` | Borrar sin ser administrador; campos extra |
 | Calibraciones | Solo admin | `idDispositivo`, `fecha`, `realizadaPor`, `parametro`, `nota` | Calibrar un dispositivo inexistente; fecha del teléfono; firmar con otro nombre; reescribirla (solo la nota) |
 

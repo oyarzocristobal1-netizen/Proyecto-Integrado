@@ -31,6 +31,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import com.example.myapplication.ui.MeasurementReminderEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -157,6 +158,9 @@ private fun MainScaffold(
     val records by recordsViewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val role = session.role
+
+    // Avisos de "toca medir" para las mediciones propias (se programan aunque se cierre la app).
+    MeasurementReminderEffect(state = records, session = session)
 
     // Un solo lugar para los mensajes de registros, lotes, alertas y rangos.
     LaunchedEffect(records.message) {

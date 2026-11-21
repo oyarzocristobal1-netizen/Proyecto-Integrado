@@ -25,6 +25,7 @@ import com.example.myapplication.model.MilkQualityReading
 import com.example.myapplication.model.QualityRanges
 import com.example.myapplication.model.QualityRangesHolder
 import com.example.myapplication.model.RecordRules
+import com.example.myapplication.model.ReviewRules
 import com.example.myapplication.model.SaleDecision
 import com.example.myapplication.model.SaleRelease
 import com.example.myapplication.model.analysis.VerdictLevel
@@ -146,6 +147,10 @@ data class RecordsUiState(
     /** La medicion de una alerta, si esta entre las cargadas (historial o ultimos 7 dias). */
     fun measurementOf(alert: MilkAlert): SavedMeasurement? =
         recent.firstOrNull { it.id == alert.measurementId } ?: history.firstOrNull { it.id == alert.measurementId }
+
+    /** Mediciones validas en las que el trabajador pidio revision y el encargado aun no la hace. */
+    val pendingReviews: List<SavedMeasurement>
+        get() = recentValid.filter { it.reviewRequested && !it.reviewDone }
 
     /** Mediciones guardadas en el telefono que el servidor aun no confirma. */
     val pendingSyncCount: Int get() = recent.count { it.pendingSync }
@@ -737,12 +742,40 @@ class RecordsViewModel(
         ) { repository.annulMeasurement(measurement.id, reason, current) }
     }
 
+    /** El encargado marca como revisada una medicion en la que se pidio revision (con nota opcional). */
+    fun resolveReview(measurement: SavedMeasurement, note: String, onDone: () -> Unit) {
+        val current = session ?: return
+        if (!current.role.canAttendAlerts) {
+            showMessage("Tu rol no permite marcar revisiones.")
+            return
+        }
+        if (!measurement.reviewRequested || measurement.reviewDone) return
+        if (measurement.pendingSync) {
+            showMessage("Esa medición aún no llegó al servidor: espera a que se sincronice.")
+            return
+        }
+        ReviewRules.validateNote(note)?.let {
+            showMessage(it)
+            return
+        }
+        write(
+            done = "Revisión marcada como hecha.",
+            failure = "No se pudo marcar la revisión",
+            onDone = onDone
+        ) { repository.resolveReview(measurement.id, note, current) }
+    }
+
     /**
      * Registra la lectura que se ve en pantalla como medicion del lote activo.
      * Antes de guardar valida: que haya lote, que la lectura sea valida, reciente, estable y no
      * repetida, y que su dispositivo este registrado. Si algo falla, explica el motivo y no guarda.
      */
-    fun recordMeasurement(reading: MilkQualityReading?, stability: StabilityState) {
+    fun recordMeasurement(
+        reading: MilkQualityReading?,
+        stability: StabilityState,
+        note: String = "",
+        requestReview: Boolean = false
+    ) {
         val current = session ?: return
         val st = _state.value
         if (reading == null) {
@@ -767,6 +800,10 @@ class RecordsViewModel(
             showMessage("Espera a que la lectura se estabilice (${stability.samples}/${stability.required}).")
             return
         }
+        ReviewRules.validateNote(note)?.let {
+            showMessage(it)
+            return
+        }
         val deviceId = RecordRules.deviceIdFor(reading.source)
         if (deviceId in st.missingDevices) {
             showMessage("El dispositivo \"$deviceId\" no está registrado. El administrador debe ingresar a la app para registrarlo.")
@@ -781,9 +818,12 @@ class RecordsViewModel(
             session = current,
             ranges = st.ranges,
             onSynced = { showMessage("$kind confirmada en la nube ($lotName).") },
-            onError = { e -> showMessage("La nube rechazó la medición: " + e.toUserMessage()) }
+            onError = { e -> showMessage("La nube rechazó la medición: " + e.toUserMessage()) },
+            note = note,
+            requestReview = requestReview
         )
-        val alerts = if (result.alertCount > 0) " Se generaron ${result.alertCount} alerta(s)." else ""
+        val alerts = (if (result.alertCount > 0) " Se generaron ${result.alertCount} alerta(s)." else "") +
+            (if (requestReview) " Se pidió revisión al encargado." else "")
         val where = if (st.online) "Enviando al servidor…" else "Sin conexión: quedó guardada en el teléfono y se enviará al volver la red."
         _state.update { it.copy(lastRecordedTimestamp = reading.timestamp) }
         showMessage("$kind registrada ($lotName).$alerts $where")

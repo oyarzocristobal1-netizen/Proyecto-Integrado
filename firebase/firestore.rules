@@ -151,8 +151,11 @@ service cloud.firestore {
                   || (activo() && resource.data.uidLechero == request.auth.uid);
       allow create: if activo()
         && request.resource.data.keys().hasOnly(['idDispositivo', 'idLote', 'uidLechero', 'nombreLechero',
-             'fechaHora', 'registradoEn', 'origen', 'sensores', 'resultado'])
+             'fechaHora', 'registradoEn', 'origen', 'sensores', 'resultado', 'nota', 'revision'])
         && request.resource.data.uidLechero == request.auth.uid
+        // Nota opcional del trabajador (hasta 200 caracteres) y peticion de revision al encargado
+        && notaOpcional(request.resource.data, 'nota', 200)
+        && (!('revision' in request.resource.data) || request.resource.data.revision == true)
         && esMiNombre(request.resource.data.nombreLechero)
         // Origen: los datos simulados (modo DEMO) solo se guardan con el dispositivo "simulador"
         && ((request.resource.data.origen == 'simulado' && request.resource.data.idDispositivo == 'simulador')
@@ -181,6 +184,17 @@ service cloud.firestore {
         && request.resource.data.motivoAnulacion.size() >= 3
         && esMiNombre(request.resource.data.anuladaPor)
         && request.resource.data.anuladaEn == request.time;
+      // El encargado marca como revisada una medicion en la que se pidio revision (una sola vez),
+      // con su nombre, la hora del servidor y una nota opcional. No se toca nada mas.
+      allow update: if esEncargado()
+        && resource.data.get('revision', false) == true
+        && resource.data.get('revisionAtendida', false) == false
+        && cambios().hasAll(['revisionAtendida', 'revisionPor', 'revisionEn'])
+        && cambios().hasOnly(['revisionAtendida', 'revisionPor', 'revisionEn', 'revisionNota'])
+        && request.resource.data.revisionAtendida == true
+        && esMiNombre(request.resource.data.revisionPor)
+        && request.resource.data.revisionEn == request.time
+        && notaOpcional(request.resource.data, 'revisionNota', 200);
       allow delete: if esAdmin();
     }
 

@@ -5,6 +5,7 @@ import com.example.myapplication.model.MilkQualityReading
 import com.example.myapplication.model.QualityRanges
 import com.example.myapplication.model.ReadingSource
 import com.example.myapplication.model.RecordRules
+import com.example.myapplication.model.ReviewRules
 import com.example.myapplication.model.SaleDecision
 import com.example.myapplication.model.DeletionRules
 import com.example.myapplication.model.UserSession
@@ -80,7 +81,15 @@ data class SavedMeasurement(
     val annulled: Boolean = false,
     val annulReason: String = "",
     val annulledByName: String = "",
-    val annulledAt: Date? = null
+    val annulledAt: Date? = null,
+    /** Nota que escribio el trabajador al registrar (vacia si no escribio nada). */
+    val note: String = "",
+    /** El trabajador pidio que el encargado revise esta medicion. */
+    val reviewRequested: Boolean = false,
+    val reviewDone: Boolean = false,
+    val reviewByName: String = "",
+    val reviewAt: Date? = null,
+    val reviewNote: String = ""
 ) {
     val isSimulated: Boolean get() = source == ReadingSource.SIMULATED
 }
@@ -289,12 +298,20 @@ class RecordsRepository(
         session: UserSession,
         ranges: QualityRanges,
         onSynced: () -> Unit,
-        onError: (Exception) -> Unit
+        onError: (Exception) -> Unit,
+        note: String = "",
+        requestReview: Boolean = false
     ): RecordResult {
         val id = UUID.randomUUID().toString()
         val assessment = reading.overallAssessment
         val measuredAt = Timestamp(Date(reading.timestamp))
         val batch = db.batch()
+        val cleanNote = ReviewRules.clean(note)
+        // Campos opcionales: solo se guardan si el trabajador escribio una nota o pidio revision.
+        val extras = buildMap<String, Any> {
+            if (cleanNote.isNotEmpty()) put("nota", cleanNote)
+            if (requestReview) put("revision", true)
+        }
         batch.set(
             measurements.document(id),
             mapOf(
@@ -316,7 +333,7 @@ class RecordsRepository(
                     "estado" to RecordRules.statusFor(assessment.level),
                     "titulo" to assessment.title
                 )
-            )
+            ) + extras
         )
         val candidates = detectAlerts(reading, ranges)
         candidates.forEach { a ->
@@ -413,6 +430,17 @@ class RecordsRepository(
                 "anuladaEn" to FieldValue.serverTimestamp()
             )
         ).await()
+    }
+
+    /** El encargado marca como revisada una medicion en la que se pidio revision (con nota opcional). */
+    suspend fun resolveReview(measurementId: String, note: String, session: UserSession) {
+        val data = mutableMapOf<String, Any>(
+            "revisionAtendida" to true,
+            "revisionPor" to session.name,
+            "revisionEn" to FieldValue.serverTimestamp()
+        )
+        if (note.isNotBlank()) data["revisionNota"] = note.trim()
+        measurements.document(measurementId).update(data).await()
     }
 
     // ---------------------------------------------------------------- alertas
@@ -611,7 +639,13 @@ class RecordsRepository(
             annulled = getBoolean("anulada") == true,
             annulReason = getString("motivoAnulacion").orEmpty(),
             annulledByName = getString("anuladaPor").orEmpty(),
-            annulledAt = getTimestamp("anuladaEn")?.toDate()
+            annulledAt = getTimestamp("anuladaEn")?.toDate(),
+            note = getString("nota").orEmpty(),
+            reviewRequested = getBoolean("revision") == true,
+            reviewDone = getBoolean("revisionAtendida") == true,
+            reviewByName = getString("revisionPor").orEmpty(),
+            reviewAt = getTimestamp("revisionEn")?.toDate(),
+            reviewNote = getString("revisionNota").orEmpty()
         )
     }
 

@@ -282,7 +282,9 @@ fun SavedMeasurementRow(
     /** Si se entrega, se muestra el boton "Anular" (solo encargado y administrador). */
     onAnnul: (() -> Unit)? = null,
     /** Si se entrega, se muestra "Eliminar" (solo administrador; ultimo recurso). */
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    /** Si se entrega, se muestra "Marcar revisada" cuando el trabajador pidio revision (encargado y administrador). */
+    onReview: (() -> Unit)? = null
 ) {
     val status = AppTheme.status
     Card(
@@ -315,6 +317,13 @@ fun SavedMeasurementRow(
                 }
                 if (measurement.isSimulated) SimulatedBadge()
                 if (measurement.pendingSync) PendingSyncBadge()
+                if (measurement.reviewRequested) {
+                    if (measurement.reviewDone) {
+                        StatusPill("REVISADA", status.good)
+                    } else {
+                        StatusPill("REVISIÓN SOLICITADA", status.warning)
+                    }
+                }
             }
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -339,6 +348,31 @@ fun SavedMeasurementRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+            if (measurement.note.isNotBlank()) {
+                Text(
+                    text = "Nota: ${measurement.note}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (measurement.reviewDone) {
+                Text(
+                    text = buildString {
+                        append("Revisada")
+                        if (measurement.reviewByName.isNotBlank()) append(" por ${measurement.reviewByName}")
+                        measurement.reviewAt?.let { append(" el ${dayTime.format(it)}") }
+                        if (measurement.reviewNote.isNotBlank()) append("\nNota del encargado: ${measurement.reviewNote}")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (onReview != null && measurement.reviewRequested && !measurement.reviewDone && !measurement.annulled) {
+                Button(
+                    onClick = onReview,
+                    enabled = !measurement.pendingSync,
+                    modifier = Modifier.align(Alignment.End)
+                ) { Text("Marcar revisada") }
             }
             if (measurement.annulled) {
                 Text(
