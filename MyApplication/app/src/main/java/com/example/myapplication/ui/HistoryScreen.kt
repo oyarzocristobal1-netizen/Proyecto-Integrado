@@ -136,7 +136,10 @@ fun HistoryScreen(
                 }
             }
 
-            if (canFilterLots && state.history.isNotEmpty()) {
+            // El analisis resume cada lote completo: con un filtro de resultado u origen activo se oculta,
+            // para que la lista filtrada quede a la vista justo debajo de los filtros.
+            val filtering = state.historyStatus != StatusFilter.ALL || state.historyOrigin != OriginFilter.ALL
+            if (canFilterLots && state.history.isNotEmpty() && !filtering) {
                 item {
                     val lotAnalyses = remember(state.history, state.ranges) {
                         LotAnalyzer.analyze(state.historyValid.map { it.asAnalysisReading() }, state.ranges)
