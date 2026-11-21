@@ -15,7 +15,7 @@ hardware está listado al final como pendiente.
 El informe queda en `MyApplication/app/build/reports/tests/testDebugUnitTest/index.html`.
 En Android Studio también se pueden ejecutar con clic derecho sobre `app/src/test` → *Run Tests*.
 
-**Pruebas de las reglas de Firestore (88: 50 anteriores + 27 del CRUD ampliado y las eliminaciones + 4 de liberar lotes para venta + 7 de nota y revisión)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
+**Pruebas de las reglas de Firestore (89: 50 anteriores + 28 del CRUD ampliado y las eliminaciones + 4 de liberar lotes para venta + 7 de nota y revisión)** — necesitan Node.js 18+ y Java 11+ (usan el emulador de Firestore,
 no tocan la base real):
 
 ```
@@ -63,7 +63,7 @@ npm test
 | Mediciones | 9 | Medición + alerta en una escritura; dato simulado no puede pasar por sensor; límites físicos; hora del servidor; lote y caja existentes; inmutables; lectura según el rol |
 | Alertas | 4 | Requieren su medición, ID `medicion-tipo`, tipo y estado válidos; solo encargado/admin las atienden |
 | Rangos | 2 | Solo el admin guarda rangos coherentes; todos los usuarios activos los leen |
-| Seguridad: eliminar solo el administrador | 5 | Encargado y lechero no borran nada; sin sesión, correo sin verificar o cuenta desactivada tampoco; el admin borra todo menos los rangos y su propio perfil; borrado disfrazado; medición + alertas + bitácora en una escritura (ver [seguridad.md](seguridad.md)) |
+| Seguridad: eliminar solo el administrador | 6 | Encargado y lechero no borran nada; sin sesión, correo sin verificar o cuenta desactivada tampoco; el admin borra todo menos los rangos y su propio perfil; borrado disfrazado; medición + alertas + bitácora en una escritura (ver [seguridad.md](seguridad.md)) |
 | Bitácora de eliminaciones | 3 | Solo el admin anota y lee, con su nombre y hora del servidor; formato válido; no se edita ni se borra |
 | Seguridad: escalada de privilegios | 6 | Cambio de rol, cuentas sin perfil, administrador desactivado |
 | Seguridad: lectura de datos ajenos | 4 | Perfiles de otros, colecciones no definidas |
@@ -75,7 +75,7 @@ npm test
 | Nota y petición de revisión | 7 | El trabajador guarda nota (≤200) y pide revisión al registrar; no puede crear la revisión ya hecha ni campos extra; solo encargado/admin la marcan, una vez, con su nombre y la hora del servidor; solo donde se pidió y sin tocar otros campos |
 | Alertas atendidas con nota | 6 | Atender con nota opcional, quién y cuándo; editar solo la nota; el formato anterior sigue valiendo |
 | Dispositivos y calibraciones (admin) | 4 | Solo el admin; calibración con dispositivo existente, fecha del servidor y responsable; solo se corrige la nota |
-| **Total** | **88** | 36 nuevas aún sin ejecutar en el emulador (no se pudo descargar en el entorno de desarrollo): `npm test` en `firebase/tests` |
+| **Total** | **89** | Ejecutadas con el emulador en el computador del equipo el 21-11-2026: 89 correctas, 0 fallidas (el emulador no se puede descargar en el entorno de desarrollo en la nube) |
 
 ## 4. Resultados obtenidos
 
@@ -90,6 +90,7 @@ npm test
 | **179 pruebas unitarias** tras la medición guiada y la proyección (`gradlew test --rerun-tasks`, 25 tareas ejecutadas) | **179 correctas, 0 fallas**, BUILD SUCCESSFUL en 16 s | Computador del equipo, 20-11-2026 |
 | 26 pruebas de reglas originales con el emulador (`npm test`) | 26 correctas, 0 fallidas | Computador del equipo, 16-11-2026 (primera corrida, antes de endurecer las reglas) |
 | **50 pruebas de reglas** (26 + 24 de seguridad) con las reglas endurecidas | **50 correctas, 0 fallidas** (10 grupos, 6,8 s) | Computador del equipo, 16-11-2026 |
+| **89 pruebas de reglas** (50 + CRUD ampliado, eliminaciones, liberar lote para venta, nota y revisión; `npm test`, 18 grupos) | **89 correctas, 0 fallidas, 0 canceladas** en 10,5 s | Computador del equipo, 21-11-2026 |
 | Compilación de la app y prueba en teléfono | Correcta (app instalada y usada en modo DEMO) | Android Studio y teléfono del equipo |
 
 

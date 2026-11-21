@@ -25,7 +25,7 @@ las secciones correspondientes del informe.
 
 ## Pruebas (sección de validación)
 
-- 81 pruebas unitarias automáticas y 50 pruebas de reglas de Firestore (detalle en [pruebas.md](pruebas.md)).
+- 227 pruebas unitarias automáticas (por confirmar con Gradle) y 89 pruebas de reglas de Firestore (verificadas con el emulador) (detalle en [pruebas.md](pruebas.md)).
 - Pruebas con hardware pendientes hasta contar con la caja de sensores.
 
 ## Pendiente o no implementado
