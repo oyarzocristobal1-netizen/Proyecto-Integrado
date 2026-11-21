@@ -61,7 +61,7 @@ private object WelcomeColors {
 
 /**
  * Pantalla de bienvenida: explica en pocas lineas que hace la app. Se muestra al abrir la app sin
- * sesion; "Ingresar" y "Iniciar sesion" llevan al inicio de sesion (las cuentas las crea el administrador).
+ * sesion; "Ingresar" lleva al inicio de sesion (las cuentas las crea el administrador).
  */
 @Composable
 fun WelcomeScreen(onContinue: () -> Unit) {
@@ -78,7 +78,7 @@ fun WelcomeScreen(onContinue: () -> Unit) {
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
-                alignment = BiasAlignment(0f, -0.1f)
+                alignment = BiasAlignment(0f, -0.65f)
             )
             // Desvanece la foto hacia el fondo para que el titulo se lea.
             Box(
@@ -90,29 +90,9 @@ fun WelcomeScreen(onContinue: () -> Unit) {
             )
             Row(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(12.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.92f))
-                    .clickable(onClick = onContinue)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text("Iniciar sesión", color = WelcomeColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = WelcomeColors.Green,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            Row(
-                modifier = Modifier
                     .align(Alignment.TopStart)
                     .statusBarsPadding()
-                    .padding(start = 16.dp, top = 56.dp)
+                    .padding(start = 16.dp, top = 14.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White.copy(alpha = 0.88f))
                     .padding(horizontal = 14.dp, vertical = 10.dp),
