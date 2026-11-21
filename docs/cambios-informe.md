@@ -59,3 +59,8 @@ las secciones correspondientes del informe.
 - Para no cargar la app con una marca en cada dato, se quitaron las insignias "SIMULADA" repetidas y los banners grandes de cada pantalla. En su lugar aparece un letrero pequeño **DEMO** junto al título, mientras haya datos simulados o el modo Simulación esté activo.
 - Los reportes (columna Origen y advertencia en el resumen) y el resumen diario compartido siguen indicando que los datos son simulados, porque salen de la app.
 - Lo simulado sigue guardándose con `origen = "simulado"` y el dispositivo `simulador`, y las reglas de Firestore impiden hacerlo pasar por dato del sensor.- En la pantalla Medir se ocultó el selector Simulación | Caja de sensores, porque la caja no estará disponible; queda la selección de la muestra simulada (Variada, Normal, Ácida, Mastitis, Diluida). La conexión por Bluetooth sigue implementada en el código y documentada en [protocolo-caja.md](protocolo-caja.md), pero no se puede activar desde la interfaz.- Los botones de filtro por origen (Todas / Sensor / Simuladas) del Panel y del Historial solo aparecen si hay mediciones del sensor y simuladas a la vez; con solo datos simulados quedan ocultos (y si quedaran activos, vuelven a "Todas").
+
+## Política de contraseñas
+
+- Las cuentas nuevas exigen contraseña de **10 caracteres o más, con mayúscula, minúscula y número**. La app lo valida al crear el usuario (con el motivo del rechazo) y la misma política se activa en Firebase Authentication para que el servidor también la exija, no solo la app. El inicio de sesión no aplica la regla de complejidad, para no dejar fuera a cuentas ya creadas.
+- Prueba nueva: `PasswordRulesTest` (4).

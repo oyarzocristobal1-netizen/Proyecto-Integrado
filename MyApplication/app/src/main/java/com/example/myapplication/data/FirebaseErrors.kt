@@ -17,7 +17,7 @@ fun Throwable.toUserMessage(): String = when (this) {
     is FirebaseNetworkException -> "Sin conexión a internet. Revisa la red e inténtalo de nuevo."
     is FirebaseTooManyRequestsException -> "Demasiados intentos. Espera unos minutos e inténtalo de nuevo."
     is FirebaseAuthUserCollisionException -> "Ya existe una cuenta con ese correo."
-    is FirebaseAuthWeakPasswordException -> "La contraseña es demasiado débil. Usa una más larga o variada."
+    is FirebaseAuthWeakPasswordException -> "La contraseña no cumple la política: mínimo 10 caracteres, con mayúscula, minúscula y número."
     is FirebaseAuthInvalidCredentialsException -> "Correo o contraseña incorrectos."
     is FirebaseAuthInvalidUserException -> "Correo o contraseña incorrectos."
     is FirebaseFirestoreException -> firestoreMessage(code)
