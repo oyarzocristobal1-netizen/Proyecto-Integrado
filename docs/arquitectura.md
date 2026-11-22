@@ -114,16 +114,54 @@ Simulador DEMO ─────────────────────�
 | Colección | Documento | Campos principales |
 |---|---|---|
 | `usuarios` | UID | `nombre`, `correo`, `rol` (admin/encargado/lechero), `activo` |
-| `dispositivos` | `caja-01`, `simulador` | `nombre`, `ubicacion`, `estado` |
-| `lotes` | `AAAAMMDD-estanque` | `estanque`, `fecha`, `creadoPor`, `nombreCreador`, `observacion` |
-| `mediciones` | UUID | `idDispositivo`, `idLote`, `uidLechero`, `nombreLechero`, `fechaHora` (hora de la lectura), **`registradoEn`** (hora del servidor), **`origen`** (simulado/sensor), `sensores{temp,ph,cond,turb}`, `resultado{estado,titulo}` |
-| `alertas` | `idMedicion-tipo` | `idMedicion`, `idLote`, `tipo`, `severidad`, `fecha`, `atendida`, `valor`, `mensaje`, `nombreLechero`, **`origen`** |
+| `dispositivos` | `caja-01`, `simulador` | `nombre`, `ubicacion`, `estado`, `ultimaCalibracion` |
+| `estanques` | UUID | `nombre`, `activo`, `creadoPor` (catálogo permanente) |
+| `lotes` | `AAAAMMDD-estanque` | `estanque` (nombre, texto), `fecha`, `creadoPor`, `nombreCreador`, `observacion`; decisión de venta: `cerrado`, `estadoPor`, `estadoEn`, `venta`, `ventaNota`, `ventaPor`, `ventaEn` |
+| `mediciones` | UUID | `idDispositivo`, `idLote`, `uidLechero`, `nombreLechero`, `fechaHora` (hora de la lectura), **`registradoEn`** (hora del servidor), **`origen`** (simulado/sensor), `sensores{temp,ph,cond,turb}`, `resultado{estado,titulo}`, `nota`, `revision`; al atender: `revisionAtendida`, `revisionPor`, `revisionEn`, `revisionNota`; al anular: `anulada`, `motivoAnulacion`, `anuladaPor`, `anuladaEn` |
+| `alertas` | `idMedicion-tipo` | `idMedicion`, `idLote`, `tipo`, `severidad`, `fecha`, `atendida`, `valor`, `mensaje`, `nombreLechero`, **`origen`**; al atender: `nota`, `atendidaPor`, `atendidaEn` |
+| `calibraciones` | UUID | `idDispositivo`, `fecha`, `realizadaPor`, `parametro`, `nota` |
+| `eliminaciones` | UUID | `tipo`, `idElemento`, `descripcion`, `eliminadoPor`, `fecha` (bitácora; nadie la edita ni la borra) |
 | `configuracion` | `rangos` | `tempMax`, `phMin`, `phMax`, `condMin`, `condMax`, `turbMin` |
+
+### Relaciones entre colecciones
+
+Firestore no tiene claves foráneas: las relaciones son campos que guardan el ID del documento relacionado y las reglas
+comprueban que existan. Las dos excepciones se declaran abajo.
+
+| Relación | Campo | Cómo se garantiza |
+|---|---|---|
+| medición → lote (N:1) | `mediciones.idLote` | Las reglas exigen que el lote exista y que no esté cerrado; el formato del ID `AAAAMMDD-estanque` lo arma la app (`RecordRules`) |
+| medición → dispositivo (N:1) | `mediciones.idDispositivo` | Las reglas exigen que el dispositivo exista |
+| medición → lechero (N:1) | `mediciones.uidLechero` | Debe ser el UID de quien escribe; `nombreLechero` debe ser su nombre de perfil |
+| alerta → medición (N:1) | `alertas.idMedicion` | El ID de la alerta es `idMedicion-tipo` (sin duplicados); la medición debe existir y ser del mismo usuario que escribe |
+| alerta → lote (N:1) | `alertas.idLote` | Debe coincidir con el lote de la medición |
+| calibración → dispositivo (N:1) | `calibraciones.idDispositivo` | Las reglas exigen que el dispositivo exista |
+| lote → estanque (N:1) | `lotes.estanque` | **Por nombre (texto), no por ID.** Es una decisión de diseño: el ID del lote ya lleva el estanque y los lotes antiguos conservan el nombre aunque el estanque se desactive o elimine |
+| lote → creador (N:1) | `lotes.creadoPor` | UID de quien lo crea (las reglas lo comparan con la sesión) |
+| medición/alerta → lote | `idLote` en ambas | La alerta debe tener el mismo `idLote` que su medición |
+
+Al eliminar (solo administrador) se borran también los dependientes: lote → sus mediciones y alertas; medición → sus
+alertas; dispositivo → sus calibraciones. **Eliminar un lote no elimina el estanque** (el estanque es un catálogo
+permanente). Las mediciones de un dispositivo eliminado conservan su `idDispositivo` como dato histórico.
 
 Los valores de una medición son **inmutables**: lo normal es anularla (queda guardada, con motivo y responsable). Eliminar de
 verdad lo puede hacer solo el administrador y queda anotado en la bitácora `eliminaciones`, que nadie puede editar ni borrar
 (trazabilidad). Reglas: `firebase/firestore.rules`;
 índices: `firebase/firestore.indexes.json`.
+
+### Índices y consultas
+
+Hay 5 índices compuestos declarados. Las demás consultas usan un solo campo y se resuelven con los índices automáticos
+de Firestore.
+
+| Consulta de la app | Índice que la cubre |
+|---|---|
+| Historial por lote (encargado, administrador): `idLote ==` ordenado por `fechaHora` ↓ | `mediciones`: `idLote` ↑, `fechaHora` ↓ |
+| Historial propio del lechero: `uidLechero ==` ordenado por `fechaHora` ↓ | `mediciones`: `uidLechero` ↑, `fechaHora` ↓ |
+| Historial propio por lote: `uidLechero ==` y `idLote ==` ordenado por `fechaHora` ↓ | `mediciones`: `uidLechero` ↑, `idLote` ↑, `fechaHora` ↓ |
+| Alertas pendientes: `atendida ==` ordenado por `fecha` ↓ | `alertas`: `atendida` ↑, `fecha` ↓ |
+| Calibraciones de un dispositivo: `idDispositivo ==` ordenado por `fecha` ↓ | `calibraciones`: `idDispositivo` ↑, `fecha` ↓ |
+| Borrado en cascada (`idLote ==` en mediciones y alertas; `idDispositivo ==` en calibraciones) | Índice automático de un campo |
 
 ## 7. Integración futura con la caja (preparada, no validada)
 

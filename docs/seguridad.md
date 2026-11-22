@@ -50,8 +50,9 @@ inyección de fórmulas (los textos van como cadenas).
 | Editar quién creó un lote o su fecha | Encargado | Rechazado |
 | Control (evita falsos positivos) | Medición y alerta legítimas con las reglas nuevas | Aceptado |
 
-Las 26 pruebas originales siguen vigentes (permisos, límites físicos, hora del servidor, simulado ≠ sensor,
-inmutabilidad). Con estas, el archivo tiene 50 pruebas de reglas.
+Las pruebas originales siguen vigentes (permisos, límites físicos, hora del servidor, simulado ≠ sensor,
+inmutabilidad). Con las ampliaciones posteriores (CRUD, revisión del encargado, venta del lote, bitácora de eliminaciones),
+el archivo tiene **89 pruebas de reglas**, ejecutadas con `npm test` (ver `docs/pruebas.md`).
 
 ### 2.1 Altas, bajas lógicas y notas (CRUD ampliado)
 

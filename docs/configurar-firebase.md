@@ -68,14 +68,18 @@ Antes de publicar se pueden probar en el emulador: ver [pruebas.md](pruebas.md),
 
 | Acción                                        | Administrador | Encargado | Lechero       |
 |-----------------------------------------------|---------------|-----------|---------------|
-| Medir y ver resultado                         | Sí            | Sí        | Sí            |
-| Historial                                     | Todo          | Todo      | Solo el propio |
-| Editar lotes, atender alertas, exportar       | Sí            | Sí        | No            |
-| Calibrar, código de la caja, gestionar usuarios, cambiar rangos | Sí | No | No       |
+| Medir y ver el análisis del resultado         | Sí            | Sí        | Sí            |
+| Dejar una nota y pedir revisión               | Sí            | Sí        | Sí            |
+| Historial de mediciones                       | Todo          | Todo      | Solo el propio ("Mis mediciones") |
+| Panel                                         | Resumen y supervisión | Supervisión del día | "Mi día" |
+| Editar lotes, atender alertas y revisiones, anular mediciones, liberar o declarar no apto un lote, reportes | Sí | Sí | No |
+| Estanques, dispositivos y calibraciones, gestionar usuarios, cambiar rangos, eliminar con registro | Sí | No | No |
 
 El lechero es quien toma las muestras en la ordeña; en las mediciones su UID se guarda en el campo `uidLechero`.
 
 ## 7. Datos iniciales para registrar mediciones
+
+**Estanques:** el administrador los crea en **Más → Estanques** antes del primer lote (el lote se arma como `AAAAMMDD-estanque`).
 
 **Dispositivos** (las reglas exigen que cada medición apunte a un dispositivo existente). Cuando el
 **administrador ingresa a la app**, esta los registra sola si faltan. También se pueden crear a mano en la
@@ -105,8 +109,9 @@ Si falta un índice, la app muestra "Falta un índice en Firestore para esta con
 
 1. Pestaña **Medir**, tarjeta **Lote activo → Elegir**: se elige un lote de hoy o se crea el de un
    estanque (ID `AAAAMMDD-estanque`, un lote por estanque y día).
-2. Arriba se elige **Simulación** (modo DEMO) o **Caja de sensores**. El botón **Registrar** se habilita cuando
-   la lectura es **estable** (4 lecturas parecidas) y **reciente** (menos de 15 s).
+2. Se elige una **muestra DEMO** (Normal, Solo pH, Mastitis, etc.) y se pulsa **Realizar medición**. Todos los datos son
+   simulados y llevan la etiqueta DEMO (la caja de sensores no forma parte de esta entrega). El botón **Registrar** se habilita
+   cuando la lectura es **estable** (4 lecturas parecidas) y **reciente** (menos de 15 s).
 3. Registrar guarda en `mediciones` el lote, el lechero, la hora de la lectura, la hora del servidor, el origen,
    los cuatro sensores y el semáforo (`resultado.estado`: verde, ambar o rojo), junto con sus alertas.
 4. Sin conexión, la medición queda guardada en el teléfono ("Sin sincronizar") y se sube sola al volver la red.
@@ -123,6 +128,8 @@ Campos que la app agrega además de la Tabla 20 del informe:
 | `mediciones` | `registradoEn` | Hora del servidor al recibirla (no depende del reloj del teléfono) |
 | `alertas` | `origen` | Marcar alertas que vienen de datos simulados |
 | `lotes` | `nombreCreador`, `observacion` | Mostrar quién lo creó y notas del encargado |
+| `lotes` | `cerrado`, `venta`, `ventaNota`, `ventaPor`, `ventaEn` | Decisión de venta (apto / no apto) con responsable y hora |
+| `mediciones` | `nota`, `revision`, `revisionAtendida`, `revisionPor`, `revisionEn`, `revisionNota` | Nota del lechero y revisión pedida al encargado |
 
 ## 9. Alertas
 
