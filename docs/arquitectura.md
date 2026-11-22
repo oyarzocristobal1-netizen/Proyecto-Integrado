@@ -115,7 +115,7 @@ Simulador DEMO ─────────────────────�
 |---|---|---|
 | `usuarios` | UID | `nombre`, `correo`, `rol` (admin/encargado/lechero), `activo` |
 | `dispositivos` | `caja-01`, `simulador` | `nombre`, `ubicacion`, `estado`, `ultimaCalibracion` |
-| `estanques` | UUID | `nombre`, `activo`, `creadoPor` (catálogo permanente) |
+| `estanques` | derivado del nombre (sin tildes ni espacios) | `nombre`, `activo`, `creadoPor` (catálogo permanente) |
 | `lotes` | `AAAAMMDD-estanque` | `estanque` (nombre, texto), `fecha`, `creadoPor`, `nombreCreador`, `observacion`; decisión de venta: `cerrado`, `estadoPor`, `estadoEn`, `venta`, `ventaNota`, `ventaPor`, `ventaEn` |
 | `mediciones` | UUID | `idDispositivo`, `idLote`, `uidLechero`, `nombreLechero`, `fechaHora` (hora de la lectura), **`registradoEn`** (hora del servidor), **`origen`** (simulado/sensor), `sensores{temp,ph,cond,turb}`, `resultado{estado,titulo}`, `nota`, `revision`; al atender: `revisionAtendida`, `revisionPor`, `revisionEn`, `revisionNota`; al anular: `anulada`, `motivoAnulacion`, `anuladaPor`, `anuladaEn` |
 | `alertas` | `idMedicion-tipo` | `idMedicion`, `idLote`, `tipo`, `severidad`, `fecha`, `atendida`, `valor`, `mensaje`, `nombreLechero`, **`origen`**; al atender: `nota`, `atendidaPor`, `atendidaEn` |

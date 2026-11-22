@@ -118,6 +118,13 @@ npm test
 | 11 | Lechero | Revisar la pestaña Más | No aparecen Lotes, Reportes, Rangos ni Usuarios |
 | 12 | Cualquiera | Medir: comprobar que no hay selector Simulación / Caja de sensores | Solo aparece la elección de la muestra simulada. El comportamiento sin caja (no inventa valores) está cubierto por `MeasureViewModelTest` |
 | 13 | Cualquiera | Cambiar el teléfono a tema oscuro | Colores legibles; semáforo y letrero DEMO se distinguen |
+| 14 | Lechero y encargado | Pedir revisión con una nota y responderla | Aparece en Alertas como revisión pedida; al marcarla hecha con nota queda quién y cuándo; el lechero ve su estado en «Mi día» |
+| 15 | Encargado | Liberar un lote como apto con alertas pendientes | La app lo impide y explica por qué; tras atenderlas, pide nota si el análisis pidió revisar |
+| 16 | Encargado | Avisos de la app en el teléfono | Llegan «Revisión pedida» y «Alertas por atender» (los de «Hora de medir» y «Revisión respondida» siguen sin verificar) |
+
+**Estado (informe, sección 9.2):** cumplen 1, 2, 11, 12, 14 y 15; parciales 3, 6 y 16; pendientes 4, 5, 7, 8, 9, 10 y 13.
+Una prueba solo se marca como cumplida si hay captura u otra evidencia. Las pruebas de seguridad SM-01 a SM-14
+(`docs/seguridad.md`) siguen el mismo criterio: cumple SM-01, parciales SM-06, SM-12 y SM-13, el resto pendiente.
 
 ## 6. Pendiente de probar con la caja de sensores
 
