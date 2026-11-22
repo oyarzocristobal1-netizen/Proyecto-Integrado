@@ -97,6 +97,7 @@ npm test
 | 26 pruebas de reglas originales con el emulador (`npm test`) | 26 correctas, 0 fallidas | Computador del equipo, 16-11-2026 (primera corrida, antes de endurecer las reglas) |
 | **50 pruebas de reglas** (26 + 24 de seguridad) con las reglas endurecidas | **50 correctas, 0 fallidas** (10 grupos, 6,8 s) | Computador del equipo, 16-11-2026 |
 | **89 pruebas de reglas** (50 + CRUD ampliado, eliminaciones, liberar lote para venta, nota y revisión; `npm test`, 18 grupos) | **89 correctas, 0 fallidas, 0 canceladas** en 10,5 s | Computador del equipo, 21-11-2026 |
+| Reglas publicadas en Firebase frente a `firebase/firestore.rules` | **Idénticas** (283 líneas, comparación línea por línea); los 5 índices compuestos en estado READY | Proyecto medidor-calidad-de-la-leche, 21-11-2026 |
 | Compilación de la app y prueba en teléfono | Correcta (app instalada y usada en modo DEMO) | Android Studio y teléfono del equipo |
 
 
